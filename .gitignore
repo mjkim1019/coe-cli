@@ -9,7 +9,7 @@ env/
 venv/
 
 # Poetry
-poetry.lock
+
 
 # IDEs and editors
 .vscode/
