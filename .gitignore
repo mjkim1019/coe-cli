@@ -24,3 +24,6 @@ venv/
 # Tests
 .pytest_cache/
 .coverage
+
+# Command history
+.coe-cli-history
