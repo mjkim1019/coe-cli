@@ -1,6 +1,6 @@
-# coe-cli
+# CoE-cli
 
-coe-cli는 CoE LLM 도구의 CLI 인터페이스 모듈입니다.
+CoE-cli는 CoE LLM 도구의 CLI 인터페이스 모듈입니다.
 
 ## 설치
 
