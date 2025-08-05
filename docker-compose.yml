@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  coe-cli:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    stdin_open: true
+    tty: true
