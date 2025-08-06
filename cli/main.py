@@ -2,18 +2,20 @@ import click
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
+from cli.completer import PathCompleter
 
 @click.command()
 def main():
     """An interactive REPL for the CoE LLM assistant."""
     history = FileHistory('.coe-cli-history')
-    session = PromptSession(history=history)
+    session = PromptSession(history=history, completer=PathCompleter())
     file_manager = FileManager()
 
     click.echo("Welcome to the CoE CLI! Type /help for commands, or /exit to quit.")
 
     while True:
         try:
+            # Replace @file with the file content before processing
             user_input = session.prompt("> ")
 
             if user_input.lower() == '/exit':
@@ -29,7 +31,9 @@ def main():
             elif user_input.lower().startswith('/add '):
                 parts = user_input.split()
                 if len(parts) > 1:
-                    message = file_manager.add(parts[1:])
+                    # Remove the '@' symbol before passing to file manager
+                    files_to_add = [p.replace('@', '') for p in parts[1:]]
+                    message = file_manager.add(files_to_add)
                     click.echo(message)
                 else:
                     click.echo("Usage: /add <file1> <file2> ...")
