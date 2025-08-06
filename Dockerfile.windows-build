@@ -1,5 +1,5 @@
 # Dockerfile.windows-build
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-bullseye
 
 # Install Wine and other necessary packages for cross-compilation
 RUN dpkg --add-architecture i386 &&     apt-get update &&     apt-get install -y --no-install-recommends         wine         wine32         wine64         build-essential         git     && rm -rf /var/lib/apt/lists/*
