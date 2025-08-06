@@ -2,6 +2,7 @@
 name = "coe-cli"
 version = "0.1.0"
 description = "CLI interface for CoE LLM assistant"
+license = "Apache-2.0"
 authors = ["Minju Kim <you@example.com>"]
 readme = "README.md"
 packages = [

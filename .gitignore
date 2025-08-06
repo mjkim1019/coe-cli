@@ -8,8 +8,6 @@ __pycache__/
 env/
 venv/
 
-# Poetry
-
 
 # IDEs and editors
 .vscode/
@@ -25,5 +23,8 @@ venv/
 .pytest_cache/
 .coverage
 
-# Command history
+
+# 실행파일 및 Command history
+dist/
+build/
 .coe-cli-history
