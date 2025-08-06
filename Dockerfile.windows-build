@@ -1,0 +1,24 @@
+# Dockerfile.windows-build
+FROM python:3.10-slim-buster
+
+# Install Wine and other necessary packages for cross-compilation
+RUN dpkg --add-architecture i386 &&     apt-get update &&     apt-get install -y --no-install-recommends         wine         wine32         wine64         build-essential         git     && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Install Poetry
+RUN pip install poetry
+
+# Copy project files
+COPY . .
+
+# Install Python dependencies using Poetry
+RUN poetry config virtualenvs.create false &&     poetry install --no-dev
+
+# Install PyInstaller
+RUN pip install pyinstaller
+
+# Build the Windows executable
+# The entry point is cli/main.py, and the script name is coe-cli
+CMD ["pyinstaller", "--onefile", "--name", "coe-cli", "cli/main.py"]
