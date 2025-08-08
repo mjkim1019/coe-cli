@@ -1,0 +1,47 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ ci/win-exe ]         # 전용 브랜치에서만 자동 실행
+    paths:
+      - 'cli/**'
+      - 'llm/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/build-windows-exe.yml'
+  workflow_dispatch:                  # 필요할 때 수동 실행
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'      # 레포와 맞춤
+
+      - name: Install Poetry
+        run: pip install --upgrade pip poetry
+
+      - name: Install deps with Poetry (no venv)
+        run: |
+          poetry config virtualenvs.create false
+          poetry install --only main
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pip install pyinstaller
+          pyinstaller --onefile --console --name coe-cli cli\main.py
+          dir dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coe-cli-windows-${{ github.sha }}
+          path: dist\coe-cli.exe
+          retention-days: 7
