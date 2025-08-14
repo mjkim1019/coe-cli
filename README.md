@@ -33,7 +33,7 @@ CoE-CLI는 LLM 기반의 코드 편집 및 자동화를 위한 강력한 대화�
 
 | 명령어 | 설명 | 사용 예시 |
 | --- | --- | --- |
-| `/add <files...>` | 편집할 파일을 세션에 추가합니다. (여러 파일 동시 추가 가능) | `/add @src/main.py @tests/test_main.py` (Tab 자동 완성 활용) |
+| `/add <files...>` | 편집할 파일을 세션에 추가합니다. 여러 파일을 동시에 추가할 수 있으며, 각 파일의 인코딩을 자동으로 감지합니다. | `/add @src/main.py @tests/test_main.py` (여러 파일을 입력할 때는 Tab 키로 자동 완성하고, spacebar 로 파일명을 구분하세요. Enter 를 치면 명령이 바로 실행됩니다.) |
 | `/drop <files...>` | 세션에서 파일을 제거합니다. (실제 파일은 삭제되지 않음) | `/drop src/main.py` |
 | `/diff` | LLM이 제안한 변경 사항이나 마지막 변경 내용의 `diff`를 확인합니다. | `/diff` |
 | `/run <command>` | 셸 명령을 실행하고 결과를 출력합니다. | `/run pytest` |
@@ -44,11 +44,23 @@ CoE-CLI는 LLM 기반의 코드 편집 및 자동화를 위한 강력한 대화�
 ## 설치
 
 ```bash
-# Poetry 사용 시
+# pipx 설치 (없다면)
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+source ~/.zshrc  # PATH 반영
+
+# Poetry 설치
+pipx install poetry
+
+# 프로젝트 의존성 설치
 poetry install
 
-# pipx 사용 시
-pipx install .
+# 방법 1) 가상환경 진입 후 실행
+poetry env activate
+coe-cli
+
+# 방법 2) 바로 실행
+poetry run coe-cli
 ```
 
 ## 사용법

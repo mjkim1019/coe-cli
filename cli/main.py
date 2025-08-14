@@ -3,6 +3,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
 from cli.completer import PathCompleter
+from llm.service import LLMService
 
 @click.command()
 def main():
@@ -10,15 +11,15 @@ def main():
     history = FileHistory('.coe-cli-history')
     session = PromptSession(history=history, completer=PathCompleter())
     file_manager = FileManager()
+    llm_service = LLMService()
 
     click.echo("Welcome to the CoE CLI! Type /help for commands, or /exit to quit.")
 
     while True:
         try:
-            # Replace @file with the file content before processing
             user_input = session.prompt("> ")
 
-            if user_input.lower() == '/exit':
+            if user_input.lower() == ('/exit', '/quit'):
                 click.echo("Exiting CoE CLI.")
                 break
 
@@ -26,12 +27,11 @@ def main():
                 click.echo("Available commands:")
                 click.echo("  /add <file1> <file2> ... - Add files to the session")
                 click.echo("  /help - Show this help message")
-                click.echo("  /exit - Exit the CLI")
+                click.echo("  /exit or /quit - Exit the CLI")
 
             elif user_input.lower().startswith('/add '):
                 parts = user_input.split()
                 if len(parts) > 1:
-                    # Remove the '@' symbol before passing to file manager
                     files_to_add = [p.replace('@', '') for p in parts[1:]]
                     message = file_manager.add(files_to_add)
                     click.echo(message)
@@ -42,7 +42,23 @@ def main():
                 continue
 
             else:
-                click.echo(f"Command not yet implemented: {user_input}")
+                # Prepare messages for LLM
+                messages = []
+                # Add file contents as system messages
+                for file_path, content in file_manager.files.items():
+                    messages.append({"role": "system", "content": f"File: {file_path}\n```\n{content}\n```"})
+                # Add user's prompt
+                messages.append({"role": "user", "content": user_input})
+
+                click.echo("Thinking...")
+                llm_response = llm_service.chat_completion(messages)
+
+                if llm_response and "choices" in llm_response:
+                    # Assuming the response structure is similar to OpenAI API
+                    llm_message = llm_response["choices"][0]["message"]
+                    click.echo(f"LLM: {llm_message['content']}")
+                else:
+                    click.echo("LLM did not return a valid response.")
 
         except KeyboardInterrupt:
             continue
