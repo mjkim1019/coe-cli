@@ -19,7 +19,7 @@ def main():
         try:
             user_input = session.prompt("> ")
 
-            if user_input.lower() == '/exit':
+            if user_input.lower() == ('/exit', '/quit'):
                 click.echo("Exiting CoE CLI.")
                 break
 
@@ -27,7 +27,7 @@ def main():
                 click.echo("Available commands:")
                 click.echo("  /add <file1> <file2> ... - Add files to the session")
                 click.echo("  /help - Show this help message")
-                click.echo("  /exit - Exit the CLI")
+                click.echo("  /exit or /quit - Exit the CLI")
 
             elif user_input.lower().startswith('/add '):
                 parts = user_input.split()
