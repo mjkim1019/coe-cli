@@ -23,6 +23,7 @@ venv/
 .pytest_cache/
 .coverage
 tests/fixtures/
+.poetry/lock
 
 
 # 실행파일 및 Command history
