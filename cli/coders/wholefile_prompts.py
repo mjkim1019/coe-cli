@@ -47,41 +47,10 @@ path/to/exact/filename.ext
    - Each file must be self-contained and functional
 
 EXAMPLE (showing complete file structure):
-```
+
 src/calculator.py
-```python
-import math
-from typing import Union
-
-class Calculator:
-    """A simple calculator class."""
-    
-    def __init__(self):
-        self.history = []
-    
-    def add(self, a: float, b: float) -> float:
-        """Add two numbers."""
-        result = a + b
-        self.history.append(f"{a} + {b} = {result}")
-        return result
-    
-    def subtract(self, a: float, b: float) -> float:
-        """Subtract b from a."""
-        result = a - b
-        self.history.append(f"{a} - {b} = {result}")
-        return result
-
-    # NEW FUNCTION ADDED HERE
-    def multiply(self, a: float, b: float) -> float:
-        """Multiply two numbers."""
-        result = a * b
-        self.history.append(f"{a} * {b} = {result}")
-        return result
-
-if __name__ == "__main__":
-    calc = Calculator()
-    print(calc.add(2, 3))
-```
+[CODE BLOCK WITH COMPLETE FILE CONTENT]
+//todo
 
 Remember: WHOLEFILE means the ENTIRE file content. Never truncate or use placeholders.
 

@@ -17,18 +17,37 @@ class UDiffCoder(BaseCoder):
         """AI 응답에서 unified diff 추출하여 파일에 적용"""
         files = {}
         
-        # diff 블록 찾기
-        diff_pattern = r'```diff\s*\n(.*?)\n```'
-        diff_matches = re.findall(diff_pattern, response, re.DOTALL)
+        print(f"[UDiff DEBUG] 파싱 시작, 응답 길이: {len(response)}")
+        
+        # 여러 패턴으로 diff 블록 찾기
+        patterns = [
+            r'```diff\s*\n(.*?)\n```',  # 표준 diff 블록
+            r'```\s*\n(---.*?)\n```',   # 백틱만 있는 경우
+            r'(---.*?\+\+\+.*?@@.*?)(?=\n---|\n```|\Z)',  # diff 헤더 패턴
+        ]
+        
+        diff_matches = []
+        for pattern in patterns:
+            matches = re.findall(pattern, response, re.DOTALL)
+            if matches:
+                diff_matches.extend(matches)
+                print(f"[UDiff DEBUG] 패턴 매치: {len(matches)}개 diff")
+                break
         
         if not diff_matches:
-            # 백틱 없는 diff도 시도
+            # 백틱 없는 전체 diff도 시도
             if '---' in response and '+++' in response and '@@' in response:
                 diff_matches = [response]
+                print(f"[UDiff DEBUG] 전체 응답을 diff로 처리")
+            else:
+                print(f"[UDiff DEBUG] diff 패턴 매치 실패")
+                print(f"[UDiff DEBUG] 응답 미리보기: {response[:200]}...")
+                return files
         
         for diff_content in diff_matches:
             parsed_files = self._parse_unified_diff(diff_content, context_files)
             files.update(parsed_files)
+            print(f"[UDiff DEBUG] diff에서 {len(parsed_files)}개 파일 파싱됨")
         
         return files
     

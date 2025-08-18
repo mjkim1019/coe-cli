@@ -15,14 +15,12 @@ CRITICAL RULES for EDITBLOCK editing:
    - Use search and replace patterns for precise targeting
 
 2. **Required Response Format**:
-```
 path/to/exact/filename.ext
 <<<<<<< SEARCH
 <exact code to find and replace>
 =======
 <new code to replace it with>
 >>>>>>> REPLACE
-```
 
 3. **Search Block Requirements**:
    - Must be EXACTLY as it appears in the original file
@@ -36,7 +34,6 @@ path/to/exact/filename.ext
    - Ensure proper syntax and functionality
 
 5. **Multiple Changes in Same File**:
-```
 path/to/filename.ext
 <<<<<<< SEARCH
 <first block to replace>
@@ -49,7 +46,6 @@ path/to/filename.ext
 =======
 <second replacement>
 >>>>>>> REPLACE
-```
 
 6. **Best Practices**:
    - Use enough context in SEARCH to avoid ambiguity
@@ -58,19 +54,7 @@ path/to/filename.ext
    - Test your changes mentally
 
 EXAMPLE:
-```
-src/calculator.py
-<<<<<<< SEARCH
-    def add(self, a: float, b: float) -> float:
-        return a + b
-=======
-    def add(self, a: float, b: float) -> float:
-        """Add two numbers and log the operation."""
-        result = a + b
-        self.history.append(f"{a} + {b} = {result}")
-        return result
->>>>>>> REPLACE
-```
+//todo
 
 ## 특수 용어 컨텍스트:
 - "dbio": Database Input/Output의 줄임말로, 데이터베이스 입출력과 관련된 용어입니다. 

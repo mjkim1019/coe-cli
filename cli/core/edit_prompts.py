@@ -39,9 +39,9 @@ path/to/exact/filename.ext
    - Test logic flow in your head before responding
 
 EXAMPLE RESPONSE FORMAT:
-```
+
 src/main.py
-```python
+[CODE BLOCK WITH COMPLETE FILE CONTENT]
 import os
 
 def main():
@@ -49,7 +49,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
 
 ## 특수 용어 컨텍스트:
 - "dbio": Database Input/Output의 줄임말로, 데이터베이스 입출력과 관련된 용어입니다. 
