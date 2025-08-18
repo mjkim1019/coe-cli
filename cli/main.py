@@ -67,7 +67,7 @@ def main():
 
             # Build the prompt using PromptBuilder
             prompt_builder = PromptBuilder(task)
-            messages = prompt_builder.build(user_input, file_manager.files, chat_history)
+            messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
             click.echo("Thinking...")
             llm_response = llm_service.chat_completion(messages)

@@ -15,7 +15,7 @@ class PromptBuilder:
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Invalid task name '{self.task}'. Could not load prompts.") from e
 
-    def build(self, user_input: str, file_context: dict, history: list = None):
+    def build(self, user_input: str, file_context: dict, history: list = None, file_manager=None):
         if history is None:
             history = []
 
@@ -31,6 +31,14 @@ class PromptBuilder:
 
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
+                
+                # C 파일인 경우 구조 정보 추가
+                if file_path.endswith('.c') and file_manager:
+                    c_info = file_manager.get_c_file_context(file_path)
+                    if c_info:
+                        structure_info = self._build_c_structure_info(c_info)
+                        file_str += f"\n\n{structure_info}"
+                
                 messages.append({"role": "system", "content": file_str})
 
         # 3. Add existing history
@@ -44,3 +52,22 @@ class PromptBuilder:
             messages.append({"role": "system", "content": self.prompts.system_reminder})
 
         return messages
+
+    def _build_c_structure_info(self, c_info):
+        """C 파일 구조 정보를 프롬프트용 문자열로 변환"""
+        structure_text = "### C 파일 표준 함수 구조 정보:\n"
+        
+        found_functions = c_info.get('found_functions', {})
+        standard_functions = c_info.get('standard_functions', {})
+        
+        if found_functions:
+            structure_text += "**발견된 표준 함수들:**\n"
+            for func_name, func_info in found_functions.items():
+                structure_text += f"- `{func_name}` (라인 {func_info['line_number']}): {func_info['description']}\n"
+        
+        structure_text += "\n**표준 함수 구조 설명:**\n"
+        for func_name, description in standard_functions.items():
+            status = "✓ 발견됨" if func_name in found_functions else "✗ 미발견"
+            structure_text += f"- `{func_name}`: {description} ({status})\n"
+        
+        return structure_text

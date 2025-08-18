@@ -10,6 +10,7 @@ except ImportError:
 class FileManager:
     def __init__(self):
         self.files = {}
+        self.c_file_info = {}  # C 파일의 구조 정보를 저장
 
     def add(self, file_paths):
         messages = []
@@ -56,10 +57,19 @@ class FileManager:
                     self.files[file_path] = content
                     line_count = len(content.splitlines())
                     char_count = len(content)
-                    messages.append(
-                        f"Read {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars)"
-                    )
+                    
+                    # .c 파일인 경우 구조 정보 추가
+                    if file_path.endswith('.c'):
+                        self.c_file_info[file_path] = self._analyze_c_file_structure(content)
+                        messages.append(
+                            f"Read C file {file_path} with encoding {used_encoding} "
+                            f"({line_count} lines, {char_count} chars) - Standard C structure detected"
+                        )
+                    else:
+                        messages.append(
+                            f"Read {file_path} with encoding {used_encoding} "
+                            f"({line_count} lines, {char_count} chars)"
+                        )
                 except Exception as e:
                     messages.append(f"Error reading file {file_path}: {e}")
             else:
@@ -67,3 +77,38 @@ class FileManager:
                 self.files[file_path] = ""
                 messages.append(f"Added new file (will be created on edit): {file_path}")
         return "\n".join(messages)
+
+    def _analyze_c_file_structure(self, content):
+        """C 파일의 표준 함수 구조를 분석"""
+        standard_functions = {
+            'a000_init_proc': '프로그램 초기화 함수',
+            'b000_input_validation': '입력 데이터 검증 수행',
+            'b999_output_setting': '출력 전문의 순서 설정',
+            'c000_main_proc': '실제 프로그램의 주요 로직 처리',
+            'c300_get_svc_info': '서비스 정보 조회 함수',
+            'x000_mpfmoutq_proc': '출력 처리 수행 함수',
+            'z000_norm_exit_proc': '프로그램 정상 종료 처리',
+            'z999_err_exit_proc': '프로그램 에러 종료 처리'
+        }
+        
+        found_functions = {}
+        lines = content.splitlines()
+        
+        for i, line in enumerate(lines):
+            for func_name, description in standard_functions.items():
+                if func_name in line and ('(' in line or 'void' in line or 'int' in line):
+                    found_functions[func_name] = {
+                        'description': description,
+                        'line_number': i + 1
+                    }
+        
+        return {
+            'standard_functions': standard_functions,
+            'found_functions': found_functions
+        }
+
+    def get_c_file_context(self, file_path):
+        """C 파일의 컨텍스트 정보를 반환"""
+        if file_path in self.c_file_info:
+            return self.c_file_info[file_path]
+        return None
