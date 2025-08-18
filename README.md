@@ -1,6 +1,6 @@
-# CoE-CLI
+# Swing CLI
 
-CoE-CLI는 LLM 백엔드 서비스와 통신하여 코드에 대해 질문하고 수정을 요청할 수 있는 대화형 CLI 도구입니다.
+Swing CLI는 LLM 백엔드 서비스와 통신하여 코드에 대해 질문하고 수정을 요청할 수 있는 대화형 CLI 도구입니다.
 
 ## 주요 기능
 
@@ -49,9 +49,9 @@ source .venv/bin/activate
 pip3 install -r requirements.txt
 ```
 
-### 3. coe-cli 실행
+### 3. Swing CLI 실행
 
-모든 설정이 완료되면 다음 명령어로 `coe-cli`를 시작합니다.
+모든 설정이 완료되면 다음 명령어로 `Swing CLI`를 시작합니다.
 
 ```bash
 python3 cli/main.py
@@ -59,7 +59,7 @@ python3 cli/main.py
 
 ## 사용법
 
-`coe-cli`가 실행되면 프롬프트(`>`)가 나타납니다.
+`Swing CLI`가 실행되면 프롬프트(`>`)가 나타납니다.
 
 1.  **파일 추가**: `/add` 명령어로 분석하거나 수정할 파일을 컨텍스트에 추가합니다.
     ```
