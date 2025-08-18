@@ -95,7 +95,7 @@ class SwingUIComponents:
 [bold cyan]🤖 작업 모드:[/bold cyan]
 [yellow]/ask[/yellow] - 질문/분석 모드 (코드 설명, 버그 분석 등)
 [yellow]/edit[/yellow] - 수정/구현 모드 (실제 파일 변경, 코드 생성)
-[yellow]/edit[/yellow] <전략> - 특정 전략으로 edit 모드 (예: /edit udiff)
+[yellow]/edit[/yellow] <전략> - 특정 전략으로 edit 모드 (예: /edit udiff, /edit block)
 
 [bold cyan]📝 파일 편집 명령어:[/bold cyan]
 [yellow]/preview[/yellow] - 마지막 edit 응답의 변경사항 미리보기
@@ -110,8 +110,8 @@ class SwingUIComponents:
 
 [bold cyan]🛠️ 편집 전략 예시:[/bold cyan]
 [yellow]/edit udiff[/yellow] - "print 오타 수정해줘" (정밀 수정)
-[yellow]/edit editblock[/yellow] - "login 함수 수정해줘" (블록 교체)  
-[yellow]/edit wholefile[/yellow] - "User 클래스 추가해줘" (대규모 변경)
+[yellow]/edit block[/yellow] - "login 함수 수정해줘" (블록 교체)  
+[yellow]/edit whole[/yellow] - "User 클래스 추가해줘" (대규모 변경)
 
 [dim]💡 팁: .c 파일과 .sql 파일은 자동으로 구조를 분석합니다![/dim]
 
@@ -491,10 +491,10 @@ class SwingUIComponents:
                 use_cases = ""
                 
                 # 전략별 설명 매핑
-                if strategy_name == "wholefile":
+                if strategy_name == "whole":
                     description = "전체 파일 교체"
                     use_cases = "새 파일, 대규모 변경"
-                elif strategy_name == "editblock":
+                elif strategy_name == "block":
                     description = "코드 블록 교체"
                     use_cases = "부분 수정, 함수 변경"
                 elif strategy_name == "udiff":

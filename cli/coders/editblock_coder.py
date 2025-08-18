@@ -49,6 +49,39 @@ class EditBlockCoder(BaseCoder):
                 if context_files:
                     first_file = list(context_files.keys())[0]
                     files[first_file] = self._apply_simple_blocks(context_files[first_file], simple_blocks)
+            
+            # SEARCH/REPLACE 실패 시 WholeFile 패턴으로 fallback 시도
+            if not files:
+                print(f"[EditBlock DEBUG] SEARCH/REPLACE 실패, WholeFile 패턴 시도")
+                wholefile_patterns = [
+                    r'^([^\n]+\.[a-zA-Z0-9]+)\s*\n```[a-zA-Z]*\n(.*?)\n```',  # 파일명 + 코드블록
+                    r'```[a-zA-Z]*\n(.*?)\n```',  # 코드블록만
+                ]
+                
+                for pattern in wholefile_patterns:
+                    matches = re.findall(pattern, response, re.DOTALL | re.MULTILINE)
+                    if matches:
+                        if isinstance(matches[0], tuple) and len(matches[0]) == 2:  # 파일명 + 내용
+                            file_path, content = matches[0]
+                            file_path = file_path.strip().rstrip(',').strip()
+                        else:  # 내용만
+                            content = matches[0]
+                            file_path = list(context_files.keys())[0] if context_files else 'unknown.txt'
+                        
+                        print(f"[EditBlock DEBUG] WholeFile 패턴 매치: {file_path}")
+                        # 컨텍스트에 있는 파일이면 사용, 없으면 첫 번째 파일 사용
+                        if file_path in context_files:
+                            target_file = file_path
+                        elif context_files:
+                            target_file = list(context_files.keys())[0]
+                            print(f"[EditBlock DEBUG] {file_path} -> {target_file} 로 매핑")
+                        else:
+                            continue
+                            
+                        files[target_file] = content.strip()
+                        print(f"[EditBlock DEBUG] WholeFile fallback 성공")
+                        break
+            
             return files
         
         for file_path, blocks_content in file_matches:
@@ -151,4 +184,4 @@ class EditBlockCoder(BaseCoder):
         ]
 
 # 레지스트리에 등록
-registry.register('editblock', EditBlockCoder)
+registry.register('block', EditBlockCoder)

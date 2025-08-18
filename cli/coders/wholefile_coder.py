@@ -83,4 +83,4 @@ class WholeFileCoder(BaseCoder):
         ]
 
 # 레지스트리에 등록
-registry.register('wholefile', WholeFileCoder)
+registry.register('whole', WholeFileCoder)

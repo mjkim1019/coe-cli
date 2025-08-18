@@ -32,7 +32,7 @@ def main():
     llm_service = LLMService()
     chat_history = []
     task = 'ask'  # Default task
-    edit_strategy = 'wholefile'  # 기본 편집 전략
+    edit_strategy = 'whole'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
     current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더
 

@@ -70,16 +70,16 @@ python3 cli/main.py
 2.  **모드 선택**: `/ask` 또는 `/edit`으로 작업 모드를 설정합니다.
     ```
     > /ask                    # 질문 모드
-    > /edit                   # 기본 편집 모드 (wholefile)
+    > /edit                   # 기본 편집 모드 (whole)
     > /edit udiff             # 정밀 수정 (한두줄 오타 등)
-    > /edit editblock         # 함수/블록 교체
+    > /edit block             # 함수/블록 교체
     ```
 
 3.  **질문 또는 요청**: 원하는 내용을 입력합니다.
     ```
     > 이 파일의 주요 기능은 무엇인가요?        # ask 모드
     > print 오타 수정해줘                     # edit udiff 모드  
-    > User 클래스 추가해줘                    # edit wholefile 모드
+    > User 클래스 추가해줘                    # edit whole 모드
     ```
 
 ### 명령어 목록
@@ -88,8 +88,8 @@ python3 cli/main.py
 | --- | --- |
 | `/add <files...>` | 하나 이상의 파일을 LLM 컨텍스트에 추가합니다. |
 | `/ask` | 코드에 대해 질문하는 'ask' 모드로 전환합니다. |
-| `/edit` | 코드 수정을 요청하는 'edit' 모드로 전환합니다 (기본: wholefile). |
-| `/edit <전략>` | 특정 편집 전략으로 모드 전환 (wholefile/editblock/udiff). |
+| `/edit` | 코드 수정을 요청하는 'edit' 모드로 전환합니다 (기본: whole). |
+| `/edit <전략>` | 특정 편집 전략으로 모드 전환 (whole/block/udiff). |
 | `/preview` | 마지막 edit 응답의 변경사항 미리보기 |
 | `/apply` | 변경사항을 실제 파일에 적용 |
 | `/help` | 사용 가능한 모든 명령어를 보여줍니다. |
@@ -99,6 +99,6 @@ python3 cli/main.py
 
 | 전략 | 적합한 상황 | 예시 |
 | --- | --- | --- |
-| **wholefile** | 새 파일 생성, 대규모 변경 | 새 클래스 추가, 파일 구조 변경 |
-| **editblock** | 특정 함수/블록 수정 | 함수 로직 변경, 메서드 추가 |  
+| **whole** | 새 파일 생성, 대규모 변경 | 새 클래스 추가, 파일 구조 변경 |
+| **block** | 특정 함수/블록 수정 | 함수 로직 변경, 메서드 추가 |  
 | **udiff** | 정밀한 라인 수정 | 오타 수정, 한두줄 변경 |

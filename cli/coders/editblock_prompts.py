@@ -54,7 +54,17 @@ path/to/filename.ext
    - Test your changes mentally
 
 EXAMPLE:
-//todo
+
+src/calculator.py
+<<<<<<< SEARCH
+    def add(self, a: float, b: float) -> float:
+        return a + b
+=======
+    def add(self, a: float, b: float) -> float:
+        result = a + b
+        self.history.append(f"{a} + {b} = {result}")
+        return result
+>>>>>>> REPLACE
 
 ## 특수 용어 컨텍스트:
 - "dbio": Database Input/Output의 줄임말로, 데이터베이스 입출력과 관련된 용어입니다. 
@@ -62,8 +72,8 @@ EXAMPLE:
   데이터베이스 관련 작업에 대한 질문으로 이해하고 답변하세요.
 """.strip()
     
-    files_content_prefix = "다음 파일들에서 특정 코드 블록을 찾아 수정하세요. SEARCH/REPLACE 패턴을 사용합니다:"
-    files_content_assistant_reply = "네, 파일 내용을 확인했습니다. SEARCH/REPLACE 블록으로 정확한 수정을 제공하겠습니다."
+    files_content_prefix = "다음 파일들에서 특정 코드 블록을 찾아 수정하세요. 반드시 SEARCH/REPLACE 패턴을 사용해야 합니다:"
+    files_content_assistant_reply = "파일을 확인했습니다. SEARCH/REPLACE 블록으로 정확한 수정을 제공하겠습니다. 전체 파일이 아닌 수정 부분만 지정합니다."
     
     system_reminder = """
 EDITBLOCK에서는 SEARCH 블록이 원본 파일과 정확히 일치해야 합니다.
