@@ -1,0 +1,5 @@
+prompt_toolkit
+click
+openai
+requests
+rich
