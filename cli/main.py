@@ -13,7 +13,12 @@ from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
 from rich.console import Console
+from rich.panel import Panel
 from cli.ui.components import SwingUIComponents
+
+# 편집 전략 import
+from cli.coders.base_coder import registry
+from cli.coders import wholefile_coder, editblock_coder, udiff_coder
 
 @click.command()
 def main():
@@ -27,7 +32,9 @@ def main():
     llm_service = LLMService()
     chat_history = []
     task = 'ask'  # Default task
+    edit_strategy = 'wholefile'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
+    current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더
 
     # 웰컴 메시지
     ui.welcome_banner(task)
@@ -74,10 +81,13 @@ def main():
                 if not last_edit_response:
                     console.print(ui.warning_panel("미리볼 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
                 else:
-                    preview = file_editor.preview_changes(last_edit_response)
-                    panels = ui.file_changes_preview(preview)
-                    for panel in panels:
-                        console.print(panel)
+                    preview = current_coder.preview_changes(last_edit_response, file_manager.files)
+                    if 'error' in preview:
+                        console.print(ui.error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
+                    else:
+                        panels = ui.file_changes_preview(preview)
+                        for panel in panels:
+                            console.print(panel)
                 continue
 
             elif user_input.lower() == '/apply':
@@ -85,7 +95,7 @@ def main():
                     console.print(ui.warning_panel("적용할 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
                 else:
                     try:
-                        operation = file_editor.apply_changes(last_edit_response, "사용자 요청으로 적용")
+                        operation = current_coder.apply_changes(last_edit_response, file_manager.files, "사용자 요청으로 적용")
                         console.print(ui.apply_confirmation(len(operation.changes)))
                         last_edit_response = None  # 적용 후 초기화
                     except Exception as e:
@@ -100,15 +110,16 @@ def main():
             elif user_input.lower() == '/debug':
                 if last_edit_response:
                     console.print(Panel(
+                        f"[bold]현재 전략:[/bold] {edit_strategy}\n"
                         f"[bold]마지막 Edit 응답 원문:[/bold]\n\n{last_edit_response[:1000]}{'...' if len(last_edit_response) > 1000 else ''}",
                         title="🐛 디버그 정보",
                         style="yellow"
                     ))
                     
-                    # 파싱 테스트
-                    parsed = file_editor.parse_edit_response(last_edit_response)
+                    # 코더별 파싱 테스트
+                    parsed = current_coder.parse_response(last_edit_response, file_manager.files)
                     console.print(Panel(
-                        f"[bold]파싱 결과:[/bold]\n" + 
+                        f"[bold]파싱 결과 ({edit_strategy}):[/bold]\n" + 
                         (f"파일 {len(parsed)}개 감지: {list(parsed.keys())}" if parsed else "파싱된 파일 없음"),
                         title="📝 파싱 결과",
                         style="cyan"
@@ -116,6 +127,7 @@ def main():
                 else:
                     console.print(ui.warning_panel("디버그할 edit 응답이 없습니다."))
                 continue
+
 
             elif user_input.lower().startswith('/rollback '):
                 parts = user_input.split()
@@ -160,9 +172,26 @@ def main():
                 ui.mode_switch_message(task)
                 continue
 
-            elif user_input.lower() == '/edit':
-                task = 'edit'
-                ui.mode_switch_message(task)
+            elif user_input.lower().startswith('/edit'):
+                parts = user_input.split()
+                if len(parts) == 1:
+                    # 기본 edit 모드
+                    task = 'edit'
+                    ui.mode_switch_message(task)
+                elif len(parts) == 2:
+                    # 전략과 함께 edit 모드
+                    strategy_name = parts[1].lower()
+                    if strategy_name in registry._coders:
+                        edit_strategy = strategy_name
+                        current_coder = registry.get_coder(edit_strategy, file_editor)
+                        task = 'edit'
+                        console.print(f"[bold green]✅ '{strategy_name}' 전략으로 edit 모드가 설정되었습니다.[/bold green]")
+                        console.print(f"[dim]✏️ 이제 {strategy_name} 방식으로 코드 수정을 요청할 수 있습니다.[/dim]\n")
+                    else:
+                        available = list(registry._coders.keys())
+                        console.print(ui.error_panel(f"알 수 없는 전략: {strategy_name}\\n사용 가능: {', '.join(available)}", "전략 오류"))
+                else:
+                    console.print(ui.error_panel("사용법: /edit 또는 /edit <전략명> (예: /edit udiff)", "명령어 오류"))
                 continue
 
             elif user_input.strip() == "":
@@ -194,8 +223,8 @@ def main():
                     
                     # 자동으로 미리보기 표시
                     try:
-                        preview = file_editor.preview_changes(response_content)
-                        if preview:
+                        preview = current_coder.preview_changes(response_content, file_manager.files)
+                        if preview and 'error' not in preview:
                             console.print()
                             panels = ui.file_changes_preview(preview)
                             for panel in panels:
@@ -205,6 +234,8 @@ def main():
                             console.print(ui.info_columns({
                                 "다음 단계": "'/preview' - 변경사항 다시 보기\n'/apply' - 변경사항 적용\n'/ask' - 질문 모드로 전환"
                             }))
+                        elif preview and 'error' in preview:
+                            console.print(ui.error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
                     except Exception as e:
                         console.print(ui.warning_panel(f"미리보기 생성 중 오류: {e}"))
                 else:

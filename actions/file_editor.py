@@ -225,6 +225,78 @@ class FileEditor:
         
         return preview
     
+    def preview_changes_from_dict(self, files_dict: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
+        """딕셔너리로부터 변경사항 미리보기 생성"""
+        preview = {}
+        
+        for file_path, new_content in files_dict.items():
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    original_content = f.read()
+            else:
+                original_content = ""
+            
+            diff = self.generate_diff(file_path, original_content, new_content)
+            visual_diff = self.generate_visual_diff(file_path, original_content, new_content)
+            
+            preview[file_path] = {
+                'original': original_content,
+                'new': new_content,
+                'diff': diff,
+                'visual_diff': visual_diff,
+                'exists': os.path.exists(file_path)
+            }
+        
+        return preview
+    
+    def apply_changes_from_dict(self, files_dict: Dict[str, str], description: str = "") -> EditOperation:
+        """딕셔너리로부터 변경사항을 실제 파일에 적용"""
+        changes = []
+        operation_id = self._generate_change_id()
+        timestamp = datetime.now().isoformat()
+        
+        # 각 파일에 대해 변경사항 적용
+        for file_path, new_content in files_dict.items():
+            # 기존 내용 읽기
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    original_content = f.read()
+            else:
+                original_content = ""
+                # 디렉토리 생성
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            # 백업 생성
+            backup_path = self._create_backup(file_path, original_content)
+            
+            # 파일 변경사항 기록
+            change = FileChange(
+                file_path=file_path,
+                original_content=original_content,
+                new_content=new_content,
+                timestamp=timestamp,
+                change_id=self._generate_change_id(),
+                backup_path=backup_path
+            )
+            changes.append(change)
+            
+            # 새 내용으로 파일 쓰기
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+        
+        # 편집 작업 기록
+        operation = EditOperation(
+            operation_id=operation_id,
+            timestamp=timestamp,
+            changes=changes,
+            description=description or f"{len(changes)}개 파일 수정"
+        )
+        
+        self.operations.append(operation)
+        self._save_history()
+        
+        return operation
+    
     def apply_changes(self, edit_response: str, description: str = "") -> EditOperation:
         """변경사항을 실제 파일에 적용"""
         files_to_change = self.parse_edit_response(edit_response)

@@ -94,6 +94,7 @@ class SwingUIComponents:
 [bold cyan]🤖 작업 모드:[/bold cyan]
 [yellow]/ask[/yellow] - 질문/분석 모드 (코드 설명, 버그 분석 등)
 [yellow]/edit[/yellow] - 수정/구현 모드 (실제 파일 변경, 코드 생성)
+[yellow]/edit[/yellow] <전략> - 특정 전략으로 edit 모드 (예: /edit udiff)
 
 [bold cyan]📝 파일 편집 명령어:[/bold cyan]
 [yellow]/preview[/yellow] - 마지막 edit 응답의 변경사항 미리보기
@@ -102,8 +103,14 @@ class SwingUIComponents:
 [yellow]/rollback[/yellow] <ID> - 특정 편집 작업 되돌리기
 [yellow]/debug[/yellow] - 마지막 edit 응답 디버깅 정보
 
+
 [yellow]/help[/yellow] - 이 도움말 메시지 표시
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
+
+[bold cyan]🛠️ 편집 전략 예시:[/bold cyan]
+[yellow]/edit udiff[/yellow] - "print 오타 수정해줘" (정밀 수정)
+[yellow]/edit editblock[/yellow] - "login 함수 수정해줘" (블록 교체)  
+[yellow]/edit wholefile[/yellow] - "User 클래스 추가해줘" (대규모 변경)
 
 [dim]💡 팁: .c 파일과 .sql 파일은 자동으로 구조를 분석합니다![/dim]
 
@@ -425,3 +432,43 @@ class SwingUIComponents:
             style="bright_blue",
             border_style="blue"
         )
+
+    def strategies_table(self, strategies: Dict[str, Any], current_strategy: str):
+        """편집 전략 목록을 테이블로 표시"""
+        table = Table(title="🛠️ 편집 전략 목록", show_header=True, header_style="bold magenta")
+        table.add_column("전략", style="cyan", width=12)
+        table.add_column("현재", justify="center", style="green", width=6)
+        table.add_column("설명", style="white")
+        table.add_column("최적 용도", style="yellow")
+        
+        for strategy_name, coder_class in strategies.items():
+            # 현재 전략인지 체크
+            is_current = "✅" if strategy_name == current_strategy else ""
+            
+            # 코더 인스턴스 생성해서 정보 얻기
+            try:
+                temp_coder = coder_class(None)  # FileEditor는 임시로 None
+                description = ""
+                use_cases = ""
+                
+                # 전략별 설명 매핑
+                if strategy_name == "wholefile":
+                    description = "전체 파일 교체"
+                    use_cases = "새 파일, 대규모 변경"
+                elif strategy_name == "editblock":
+                    description = "코드 블록 교체"
+                    use_cases = "부분 수정, 함수 변경"
+                elif strategy_name == "udiff":
+                    description = "Unix diff 형식"
+                    use_cases = "정밀 수정, Git 연동"
+                else:
+                    description = "사용자 정의 전략"
+                    use_cases = "특수 목적"
+                    
+            except Exception:
+                description = "편집 전략"
+                use_cases = "일반 목적"
+            
+            table.add_row(strategy_name, is_current, description, use_cases)
+        
+        return table

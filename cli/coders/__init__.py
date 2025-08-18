@@ -1,0 +1,1 @@
+# Swing CLI Coders - Aider에서 영감을 받은 다양한 편집 전략
