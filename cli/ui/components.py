@@ -13,7 +13,8 @@ from rich.columns import Columns
 from rich.align import Align
 from rich.layout import Layout
 from rich.live import Live
-from typing import List, Dict, Optional
+from rich.syntax import Syntax
+from typing import List, Dict, Optional, Tuple, Any
 import time
 
 class SwingUIComponents:
@@ -86,11 +87,21 @@ class SwingUIComponents:
 [bold cyan]📋 사용 가능한 명령어:[/bold cyan]
 
 [yellow]/add[/yellow] <file1> <file2> ... - 파일을 세션에 추가
-[yellow]/ask[/yellow] - 코드에 대해 질문하는 'ask' 모드로 전환
-[yellow]/edit[/yellow] - 코드 수정을 요청하는 'edit' 모드로 전환
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
 [yellow]/clear[/yellow] - 대화 기록 초기화
+
+[bold cyan]🤖 작업 모드:[/bold cyan]
+[yellow]/ask[/yellow] - 질문/분석 모드 (코드 설명, 버그 분석 등)
+[yellow]/edit[/yellow] - 수정/구현 모드 (실제 파일 변경, 코드 생성)
+
+[bold cyan]📝 파일 편집 명령어:[/bold cyan]
+[yellow]/preview[/yellow] - 마지막 edit 응답의 변경사항 미리보기
+[yellow]/apply[/yellow] - 변경사항을 실제 파일에 적용
+[yellow]/history[/yellow] - 편집 히스토리 보기
+[yellow]/rollback[/yellow] <ID> - 특정 편집 작업 되돌리기
+[yellow]/debug[/yellow] - 마지막 edit 응답 디버깅 정보
+
 [yellow]/help[/yellow] - 이 도움말 메시지 표시
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
 
@@ -254,4 +265,163 @@ class SwingUIComponents:
             f"[yellow]⚠️ {message}[/yellow]",
             title="경고",
             style="yellow"
+        )
+
+    def diff_panel(self, diff_content: str, file_path: str):
+        """diff 내용을 표시하는 패널"""
+        return Panel(
+            diff_content,
+            title=f"📝 변경사항 - {file_path}",
+            style="cyan",
+            border_style="cyan"
+        )
+
+    def render_visual_diff(self, visual_diff: List[Tuple[str, str]]) -> Text:
+        """시각적 diff를 Rich Text 객체로 렌더링"""
+        result = Text()
+        
+        for diff_type, line in visual_diff:
+            if diff_type == 'header':
+                # 파일 헤더 (파란색)
+                result.append(line + '\n', style="bold blue")
+            elif diff_type == 'hunk':
+                # 라인 번호 정보 (마젠타)
+                result.append(line + '\n', style="bold magenta")
+            elif diff_type == 'removed':
+                # 삭제된 라인 (빨간 배경)
+                result.append(line + '\n', style="white on red")
+            elif diff_type == 'added':
+                # 추가된 라인 (초록 배경)
+                result.append(line + '\n', style="white on green")
+            elif diff_type == 'context':
+                # 컨텍스트 라인 (회색)
+                result.append(line + '\n', style="dim white")
+            else:
+                # 기타
+                result.append(line + '\n', style="white")
+        
+        return result
+
+    def file_changes_preview(self, preview_data: Dict[str, Dict[str, Any]]):
+        """파일 변경사항 미리보기"""
+        if not preview_data:
+            return [self.warning_panel("변경할 파일이 없습니다.")]
+        
+        panels = []
+        
+        for file_path, data in preview_data.items():
+            # 파일 상태 표시
+            status = "🆕 새 파일" if not data['exists'] else "✏️ 수정"
+            
+            # 시각적 diff 렌더링
+            if 'visual_diff' in data and data['visual_diff']:
+                diff_content = self.render_visual_diff(data['visual_diff'])
+            else:
+                # fallback to regular diff
+                diff_content = data.get('diff', "[dim]차이점 없음[/dim]")
+            
+            # diff가 비어있거나 헤더만 있는 경우
+            if not data.get('visual_diff') or len(data['visual_diff']) <= 2:
+                if data['exists']:
+                    diff_content = Text("[dim]파일 내용이 동일합니다[/dim]")
+                else:
+                    # 새 파일의 경우 전체 내용 표시
+                    new_lines = data['new'].splitlines()
+                    diff_content = Text()
+                    diff_content.append(f"새 파일 생성 ({len(new_lines)}줄)\n", style="bold green")
+                    for i, line in enumerate(new_lines[:10]):  # 처음 10줄만 표시
+                        diff_content.append(f"+ {line}\n", style="white on green")
+                    if len(new_lines) > 10:
+                        diff_content.append(f"... ({len(new_lines) - 10}줄 더)\n", style="dim")
+            
+            panel = Panel(
+                diff_content,
+                title=f"{status} {file_path}",
+                style="cyan",
+                border_style="cyan",
+                expand=False
+            )
+            panels.append(panel)
+        
+        # 메인 컨테이너
+        header = Panel(
+            f"[bold cyan]📋 총 {len(preview_data)}개 파일이 변경됩니다[/bold cyan]",
+            style="bright_cyan",
+            title="변경사항 미리보기"
+        )
+        
+        result_panels = [header] + panels
+        return result_panels
+
+    def edit_history_table(self, operations: List):
+        """편집 히스토리를 테이블로 표시"""
+        if not operations:
+            return Panel(
+                "[yellow]📋 편집 히스토리가 없습니다.[/yellow]",
+                title="📜 Edit History",
+                style="yellow"
+            )
+
+        table = Table(title="📜 편집 히스토리", show_header=True, header_style="bold magenta")
+        table.add_column("ID", style="cyan", width=8)
+        table.add_column("시간", style="green", width=16)
+        table.add_column("설명", style="white")
+        table.add_column("파일 수", justify="center", style="yellow", width=8)
+        
+        for op in operations:
+            # 시간 포맷팅
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(op.timestamp)
+                formatted_time = dt.strftime("%m/%d %H:%M")
+            except:
+                formatted_time = op.timestamp[:16]
+            
+            table.add_row(
+                op.operation_id,
+                formatted_time,
+                op.description,
+                str(len(op.changes))
+            )
+        
+        return table
+
+    def rollback_confirmation(self, operation_id: str, description: str):
+        """롤백 확인 메시지"""
+        return Panel(
+            f"[yellow]⚠️ 다음 작업을 되돌리시겠습니까?[/yellow]\n\n"
+            f"[bold]작업 ID:[/bold] {operation_id}\n"
+            f"[bold]설명:[/bold] {description}\n\n"
+            f"[dim]'/rollback {operation_id} confirm' 명령으로 확인하거나[/dim]\n"
+            f"[dim]'/rollback cancel'로 취소하세요.[/dim]",
+            title="🔄 롤백 확인",
+            style="yellow"
+        )
+
+    def apply_confirmation(self, file_count: int):
+        """변경사항 적용 확인 메시지"""
+        return Panel(
+            f"[green]✅ 총 {file_count}개 파일에 변경사항이 적용되었습니다![/green]\n\n"
+            f"[dim]'/history' 명령으로 편집 히스토리를 확인하거나[/dim]\n"
+            f"[dim]문제가 있다면 '/rollback <ID>'로 되돌릴 수 있습니다.[/dim]",
+            title="🎉 적용 완료",
+            style="green"
+        )
+
+    def rollback_success(self, operation_id: str):
+        """롤백 성공 메시지"""
+        return Panel(
+            f"[green]✅ 작업 '{operation_id}'이 성공적으로 되돌려졌습니다![/green]",
+            title="🔄 롤백 완료",
+            style="green"
+        )
+
+    def edit_mode_response_panel(self, response: str):
+        """Edit 모드 AI 응답 패널 (파일 수정 내용 포함)"""
+        return Panel(
+            Markdown(response),
+            title="🤖 AI가 생성한 코드",
+            title_align="left",
+            style="bright_blue",
+            border_style="blue"
         )
