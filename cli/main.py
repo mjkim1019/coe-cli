@@ -34,6 +34,7 @@ def main():
     task = 'ask'  # Default task
     edit_strategy = 'whole'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
+    last_user_request = None  # 마지막 사용자 요청 저장
     current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더
 
     # 웰컴 메시지
@@ -95,7 +96,24 @@ def main():
                     console.print(ui.warning_panel("적용할 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
                 else:
                     try:
-                        operation = current_coder.apply_changes(last_edit_response, file_manager.files, "사용자 요청으로 적용")
+                        # 더 구체적인 설명 생성
+                        summary = current_coder.preview_changes(last_edit_response, file_manager.files)
+                        if summary and 'error' not in summary:
+                            file_names = list(summary.keys())
+                            if len(file_names) == 1:
+                                file_desc = f"{file_names[0]} 수정"
+                            else:
+                                file_desc = f"{len(file_names)}개 파일 수정"
+                        else:
+                            file_desc = "파일 수정"
+                        
+                        # 사용자 요청 내용 포함
+                        if last_user_request and len(last_user_request) < 50:
+                            description = f"{file_desc}: {last_user_request} ({edit_strategy})"
+                        else:
+                            description = f"{file_desc} ({edit_strategy} 전략)"
+                        
+                        operation = current_coder.apply_changes(last_edit_response, file_manager.files, description)
                         console.print(ui.apply_confirmation(len(operation.changes)))
                         
                         # 편집 요약 표시
@@ -256,8 +274,9 @@ def main():
                     # Edit 모드: 코드 생성 응답 표시
                     console.print(ui.edit_mode_response_panel(response_content))
                     
-                    # 마지막 edit 응답 저장
+                    # 마지막 edit 응답과 사용자 요청 저장
                     last_edit_response = response_content
+                    last_user_request = user_input
                     
                     # 자동으로 미리보기 표시
                     try:
