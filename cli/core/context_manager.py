@@ -39,6 +39,13 @@ class PromptBuilder:
                         structure_info = self._build_c_structure_info(c_info)
                         file_str += f"\n\n{structure_info}"
                 
+                # SQL 파일인 경우 구조 정보 추가
+                elif file_path.endswith('.sql') and file_manager:
+                    sql_info = file_manager.get_sql_file_context(file_path)
+                    if sql_info:
+                        structure_info = self._build_sql_structure_info(sql_info)
+                        file_str += f"\n\n{structure_info}"
+                
                 messages.append({"role": "system", "content": file_str})
 
         # 3. Add existing history
@@ -69,5 +76,53 @@ class PromptBuilder:
         for func_name, description in standard_functions.items():
             status = "✓ 발견됨" if func_name in found_functions else "✗ 미발견"
             structure_text += f"- `{func_name}`: {description} ({status})\n"
+        
+        return structure_text
+
+    def _build_sql_structure_info(self, sql_info):
+        """SQL 파일 구조 정보를 프롬프트용 문자열로 변환"""
+        structure_text = "### Oracle SQL 구조 분석 정보:\n"
+        
+        # 힌트 정보
+        if sql_info.get('hints'):
+            structure_text += "**오라클 힌트:**\n"
+            for hint in sql_info['hints']:
+                structure_text += f"- `/*+ {hint} */`\n"
+        
+        # 바인드 변수
+        if sql_info.get('bind_variables'):
+            structure_text += "\n**바인드 변수:**\n"
+            for bind_var in sql_info['bind_variables']:
+                structure_text += f"- `:{bind_var}`\n"
+        
+        # 오라클 함수
+        if sql_info.get('oracle_functions'):
+            structure_text += "\n**사용된 오라클 함수:**\n"
+            for func in sql_info['oracle_functions']:
+                structure_text += f"- `{func}`\n"
+        
+        # 아우터 조인
+        if sql_info.get('outer_joins'):
+            structure_text += "\n**아우터 조인:**\n"
+            structure_text += "- Oracle 전용 아우터 조인 구문 `(+)` 사용됨\n"
+        
+        # 테이블 별칭
+        if sql_info.get('table_aliases'):
+            structure_text += "\n**테이블 별칭:**\n"
+            for alias in sql_info['table_aliases'][:5]:  # 최대 5개만 표시
+                structure_text += f"- `{alias}`\n"
+        
+        # 유효성 체크 패턴
+        if sql_info.get('validity_patterns'):
+            structure_text += "\n**유효성 체크 날짜 패턴:**\n"
+            for pattern in sql_info['validity_patterns']:
+                structure_text += f"- `{pattern}` - 레코드 유효 종료일 체크\n"
+        
+        structure_text += "\n**SQL 특징:**\n"
+        structure_text += "- Oracle SQL 문법 사용\n"
+        structure_text += "- 성능 최적화를 위한 힌트 활용\n"
+        structure_text += "- 바인드 변수를 통한 안전한 파라미터 처리\n"
+        if sql_info.get('validity_patterns'):
+            structure_text += "- 99991231 또는 99991231235959를 사용한 유효성 체크 (무한대 날짜)\n"
         
         return structure_text
