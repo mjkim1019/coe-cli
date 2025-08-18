@@ -16,6 +16,7 @@ from rich.live import Live
 from rich.syntax import Syntax
 from typing import List, Dict, Optional, Tuple, Any
 import time
+import os
 
 class SwingUIComponents:
     def __init__(self, console: Console):
@@ -413,6 +414,44 @@ class SwingUIComponents:
             f"[dim]문제가 있다면 '/rollback <ID>'로 되돌릴 수 있습니다.[/dim]",
             title="🎉 적용 완료",
             style="green"
+        )
+
+    def edit_summary_panel(self, summary: Dict[str, Any]):
+        """편집 작업 요약 패널"""
+        content = []
+        
+        # 전체 요약
+        total = summary['total_files']
+        new = summary['new_files'] 
+        modified = summary['modified_files']
+        
+        content.append(f"[bold green]📊 편집 완료 요약[/bold green]\n")
+        content.append(f"[cyan]총 파일:[/cyan] {total}개")
+        if new > 0:
+            content.append(f"[green]새 파일:[/green] {new}개")
+        if modified > 0:
+            content.append(f"[yellow]수정:[/yellow] {modified}개")
+        
+        content.append("")
+        
+        # 파일별 상세
+        for detail in summary['files_details']:
+            path = detail['file_path']
+            filename = os.path.basename(path)
+            description = detail['change_description']
+            
+            if detail['is_new']:
+                content.append(f"[green]🆕 {filename}[/green]")
+                content.append(f"   [dim]{description}[/dim]")
+            else:
+                content.append(f"[yellow]✏️ {filename}[/yellow]")
+                content.append(f"   [dim]{description}[/dim]")
+        
+        return Panel(
+            "\n".join(content),
+            title="📈 편집 요약",
+            style="bright_blue",
+            border_style="blue"
         )
 
     def rollback_success(self, operation_id: str):

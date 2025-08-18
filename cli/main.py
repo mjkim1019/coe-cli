@@ -97,6 +97,11 @@ def main():
                     try:
                         operation = current_coder.apply_changes(last_edit_response, file_manager.files, "사용자 요청으로 적용")
                         console.print(ui.apply_confirmation(len(operation.changes)))
+                        
+                        # 편집 요약 표시
+                        summary = operation.get_summary()
+                        console.print(ui.edit_summary_panel(summary))
+                        
                         last_edit_response = None  # 적용 후 초기화
                     except Exception as e:
                         console.print(ui.error_panel(f"파일 적용 중 오류 발생: {e}", "적용 실패"))
@@ -197,9 +202,42 @@ def main():
             elif user_input.strip() == "":
                 continue
 
-            # 사용자 입력 표시
-            ui.separator()
-            console.print(ui.user_question_panel(user_input))
+            # "수정해줘" 등 edit 요청 키워드 감지 시 edit 모드로 자동 전환
+            elif any(keyword in user_input for keyword in ["수정해줘", "수정해 줘", "바꿔줘", "바꿔 줘", "고쳐줘", "고쳐 줘", "편집해줘", "편집해 줘"]):
+                if task != 'edit':
+                    task = 'edit'
+                    console.print(f"[bold green]✅ '수정해줘' 요청으로 edit 모드로 자동 전환되었습니다.[/bold green]")
+                    console.print(f"[dim]✏️ 이제 파일 수정을 요청할 수 있습니다.[/dim]\n")
+                
+                # edit 모드에서 처리하도록 계속 진행
+                ui.separator()
+                console.print(ui.user_question_panel(user_input))
+
+            # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
+            elif user_input.startswith('/'):
+                known_commands = ['/add', '/files', '/tree', '/clear', '/preview', '/apply', 
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
+                
+                # 명령어 부분만 추출 (공백 전까지)
+                command_part = user_input.split()[0].lower()
+                
+                if command_part not in known_commands:
+                    console.print(ui.error_panel(
+                        f"알 수 없는 명령어: '{command_part}'\n\n"
+                        f"사용 가능한 명령어:\n"
+                        f"• 파일 관리: /add, /files, /tree, /clear\n"
+                        f"• 모드 전환: /ask, /edit\n"
+                        f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
+                        f"• 기타: /help, /exit\n\n"
+                        f"'/help' 명령어로 자세한 도움말을 확인하세요.",
+                        "명령어 오류"
+                    ))
+                    continue
+
+            else:
+                # 일반 사용자 입력 - AI에게 전달
+                ui.separator()
+                console.print(ui.user_question_panel(user_input))
 
             # Build the prompt using PromptBuilder
             prompt_builder = PromptBuilder(task)

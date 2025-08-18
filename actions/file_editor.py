@@ -54,6 +54,111 @@ class EditOperation:
             changes=changes,
             description=data['description']
         )
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """편집 작업 요약 생성"""
+        summary = {
+            'total_files': len(self.changes),
+            'new_files': 0,
+            'modified_files': 0,
+            'files_details': []
+        }
+        
+        for change in self.changes:
+            file_detail = {
+                'file_path': change.file_path,
+                'is_new': len(change.original_content) == 0,
+                'change_description': self._analyze_changes(change)
+            }
+            
+            if file_detail['is_new']:
+                summary['new_files'] += 1
+            else:
+                summary['modified_files'] += 1
+            
+            summary['files_details'].append(file_detail)
+        
+        return summary
+    
+    def _analyze_changes(self, change: FileChange) -> str:
+        """변경사항을 자연어로 분석"""
+        if len(change.original_content) == 0:
+            # 새 파일
+            lines = len(change.new_content.splitlines())
+            content = change.new_content.lower()
+            
+            if 'class ' in content:
+                classes = len([line for line in change.new_content.splitlines() if 'class ' in line.strip()])
+                return f"새로운 클래스 {classes}개를 포함한 파일 생성"
+            elif 'def ' in content:
+                functions = len([line for line in change.new_content.splitlines() if 'def ' in line.strip()])
+                return f"새로운 함수 {functions}개를 포함한 파일 생성"
+            elif content.strip().startswith('import') or content.strip().startswith('from'):
+                return "새로운 모듈 파일 생성"
+            else:
+                return f"새 파일 생성 ({lines}줄)"
+        
+        # 기존 파일 수정 분석
+        original_lines = change.original_content.splitlines()
+        new_lines = change.new_content.splitlines()
+        
+        # diff를 통한 변경사항 분석
+        diff = list(difflib.unified_diff(original_lines, new_lines, lineterm=''))
+        added_lines = [line[1:] for line in diff if line.startswith('+') and not line.startswith('+++')]
+        removed_lines = [line[1:] for line in diff if line.startswith('-') and not line.startswith('---')]
+        
+        # 패턴 분석
+        changes = []
+        
+        # 함수 추가/수정/삭제
+        added_functions = [line.strip() for line in added_lines if 'def ' in line]
+        removed_functions = [line.strip() for line in removed_lines if 'def ' in line]
+        
+        if added_functions and not removed_functions:
+            changes.append(f"새 함수 {len(added_functions)}개 추가")
+        elif removed_functions and not added_functions:
+            changes.append(f"함수 {len(removed_functions)}개 삭제")
+        elif added_functions and removed_functions:
+            changes.append(f"함수 {len(removed_functions)}개 수정")
+        
+        # 클래스 변경
+        added_classes = [line.strip() for line in added_lines if 'class ' in line]
+        removed_classes = [line.strip() for line in removed_lines if 'class ' in line]
+        
+        if added_classes and not removed_classes:
+            changes.append(f"새 클래스 {len(added_classes)}개 추가")
+        elif removed_classes and not added_classes:
+            changes.append(f"클래스 {len(removed_classes)}개 삭제")
+        elif added_classes and removed_classes:
+            changes.append(f"클래스 {len(removed_classes)}개 수정")
+        
+        # import 변경
+        added_imports = [line.strip() for line in added_lines if line.strip().startswith(('import ', 'from '))]
+        removed_imports = [line.strip() for line in removed_lines if line.strip().startswith(('import ', 'from '))]
+        
+        if added_imports:
+            changes.append(f"import 구문 {len(added_imports)}개 추가")
+        if removed_imports:
+            changes.append(f"import 구문 {len(removed_imports)}개 제거")
+        
+        # 주석 변경
+        added_comments = [line for line in added_lines if line.strip().startswith('#') or '"""' in line or "'''" in line]
+        if added_comments:
+            changes.append("주석 및 문서화 추가")
+        
+        # 일반적인 변경사항
+        if not changes:
+            added_count = len(added_lines)
+            removed_count = len(removed_lines)
+            
+            if added_count > removed_count:
+                changes.append(f"코드 추가 (순증가 {added_count - removed_count}줄)")
+            elif removed_count > added_count:
+                changes.append(f"코드 제거 (순감소 {removed_count - added_count}줄)")
+            else:
+                changes.append("코드 수정 및 리팩토링")
+        
+        return ", ".join(changes) if changes else "파일 내용 변경"
 
 class FileEditor:
     """파일 편집 및 버전 관리 시스템"""
