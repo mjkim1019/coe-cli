@@ -1,5 +1,8 @@
 # actions/file_manager.py
 import os
+import re
+from typing import List, Optional, Dict
+from .file_tree_analyzer import FileTreeAnalyzer
 
 # 새로 추가: charset_normalizer로 인코딩 감지
 try:
@@ -12,79 +15,206 @@ class FileManager:
         self.files = {}
         self.c_file_info = {}  # C 파일의 구조 정보를 저장
         self.sql_file_info = {}  # SQL 파일의 구조 정보를 저장
+        self.tree_analyzer = FileTreeAnalyzer()  # 파일 트리 분석기
 
     def add(self, file_paths):
+        """파일 또는 디렉토리를 컨텍스트에 추가"""
         messages = []
+        file_analyses = []
+        
         for file_path in file_paths:
-            if os.path.exists(file_path):
-                try:
-                    # 바이너리 모드로 먼저 읽어 raw 데이터를 확보
-                    with open(file_path, 'rb') as f:
-                        raw_data = f.read()
-
-                    # 1) 기본적으로 raw 데이터를 대상으로 인코딩 감지 시도
-                    detected_encoding = None
-                    if from_bytes:
-                        try:
-                            best_match = from_bytes(raw_data).best()
-                            if best_match and best_match.encoding:
-                                detected_encoding = best_match.encoding
-                        except Exception:
-                            pass
-
-                    # 2) 감지된 인코딩을 먼저 시도하고, 그 밖에 일반적으로 사용하는 인코딩 목록을 순차적으로 시도
-                    encodings_to_try = []
-                    if detected_encoding:
-                        encodings_to_try.append(detected_encoding)
-                    # EUC-KR, CP949 같은 한글 인코딩과 UTF-8 BOM 등을 포함해 시도
-                    encodings_to_try += ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr', 'shift_jis']
-
-                    content = None
-                    used_encoding = None
-                    for enc in encodings_to_try:
-                        try:
-                            content = raw_data.decode(enc)
-                            used_encoding = enc
-                            break
-                        except Exception:
-                            continue
-
-                    # 3) 모든 시도가 실패한 경우에는 errors='replace' 옵션을 사용해 UTF-8로 강제 디코딩
-                    if content is None:
-                        content = raw_data.decode('utf-8', errors='replace')
-                        used_encoding = 'utf-8 (fallback with replace)'
-
-                    # 읽은 내용과 인코딩 정보를 저장
-                    self.files[file_path] = content
-                    line_count = len(content.splitlines())
-                    char_count = len(content)
-                    
-                    # .c 파일인 경우 구조 정보 추가
-                    if file_path.endswith('.c'):
-                        self.c_file_info[file_path] = self._analyze_c_file_structure(content)
-                        messages.append(
-                            f"Read C file {file_path} with encoding {used_encoding} "
-                            f"({line_count} lines, {char_count} chars) - Standard C structure detected"
-                        )
-                    # .sql 파일인 경우 구조 정보 추가
-                    elif file_path.endswith('.sql'):
-                        self.sql_file_info[file_path] = self._analyze_sql_file_structure(content)
-                        messages.append(
-                            f"Read SQL file {file_path} with encoding {used_encoding} "
-                            f"({line_count} lines, {char_count} chars) - Oracle SQL structure detected"
-                        )
-                    else:
-                        messages.append(
-                            f"Read {file_path} with encoding {used_encoding} "
-                            f"({line_count} lines, {char_count} chars)"
-                        )
-                except Exception as e:
-                    messages.append(f"Error reading file {file_path}: {e}")
+            if os.path.isdir(file_path):
+                # 디렉토리인 경우 재귀적으로 파일들을 추가
+                dir_messages = self.add_directory(file_path)
+                messages.extend(dir_messages)
             else:
-                # 새 파일의 경우 빈 문자열로 초기화
-                self.files[file_path] = ""
-                messages.append(f"Added new file (will be created on edit): {file_path}")
-        return "\n".join(messages)
+                # 개별 파일 처리
+                result = self.add_single_file(file_path)
+                if result['message']:
+                    messages.append(result['message'])
+                    
+                # 분석 결과가 있으면 저장
+                if result['analysis']:
+                    file_analyses.append({
+                        'file_path': file_path,
+                        'file_type': result['file_type'],
+                        'analysis': result['analysis']
+                    })
+        
+        # 파일 분석 결과를 포함한 전체 결과 반환
+        return {
+            'messages': messages,
+            'analyses': file_analyses
+        }
+
+    def add_directory(self, directory_path: str, max_files: int = 50) -> List[str]:
+        """디렉토리의 파일들을 재귀적으로 추가"""
+        messages = []
+        
+        # 디렉토리 분석
+        analysis = self.tree_analyzer.analyze_directory(directory_path)
+        
+        if 'error' in analysis:
+            messages.append(f"Error analyzing directory {directory_path}: {analysis['error']}")
+            return messages
+        
+        # 주요 파일들을 우선적으로 추가
+        primary_files = []
+        other_files = []
+        
+        file_categories = analysis.get('file_categories', {})
+        
+        # 카테고리별로 파일들 분류
+        for category, files in file_categories.items():
+            if category in ['c_files', 'header_files', 'sql_files', 'xml_files']:
+                # 주요 파일들
+                for file_info in files:
+                    primary_files.append(file_info['full_path'])
+            else:
+                # 기타 파일들
+                for file_info in files:
+                    other_files.append(file_info['full_path'])
+        
+        # 주요 파일들 먼저 추가
+        added_count = 0
+        for file_path in primary_files:
+            if added_count >= max_files:
+                break
+            result = self.add_single_file(file_path)
+            if result['message']:
+                messages.append(result['message'])
+                added_count += 1
+        
+        # 남은 용량이 있으면 기타 파일들도 추가
+        for file_path in other_files:
+            if added_count >= max_files:
+                break
+            result = self.add_single_file(file_path)
+            if result['message']:
+                messages.append(result['message'])
+                added_count += 1
+        
+        # 디렉토리 분석 요약 추가
+        insights = analysis.get('project_insights', {})
+        if insights:
+            messages.append(f"\n📁 Directory Analysis for {directory_path}:")
+            messages.append(f"  - Project Type: {insights.get('project_type', 'unknown')}")
+            messages.append(f"  - Complexity: {insights.get('complexity', 'unknown')}")
+            if insights.get('characteristics'):
+                messages.append(f"  - Characteristics: {', '.join(insights['characteristics'])}")
+            if insights.get('tech_stack'):
+                messages.append(f"  - Tech Stack: {', '.join(insights['tech_stack'])}")
+        
+        # 추가된 파일 통계
+        total_files = analysis.get('total_files', 0)
+        if added_count < total_files:
+            messages.append(f"\n⚠️  Added {added_count} out of {total_files} files (limit: {max_files})")
+        else:
+            messages.append(f"\n✅ Added all {added_count} files from directory")
+        
+        return messages
+
+    def add_single_file(self, file_path: str) -> Dict:
+        """단일 파일을 컨텍스트에 추가하고 분석 결과 반환"""
+        result = {
+            'message': '',
+            'analysis': None,
+            'file_type': 'unknown'
+        }
+        
+        if os.path.exists(file_path):
+            try:
+                # 바이너리 모드로 먼저 읽어 raw 데이터를 확보
+                with open(file_path, 'rb') as f:
+                    raw_data = f.read()
+
+                # 1) 기본적으로 raw 데이터를 대상으로 인코딩 감지 시도
+                detected_encoding = None
+                if from_bytes:
+                    try:
+                        best_match = from_bytes(raw_data).best()
+                        if best_match and best_match.encoding:
+                            detected_encoding = best_match.encoding
+                    except Exception:
+                        pass
+
+                # 2) 감지된 인코딩을 먼저 시도하고, 그 밖에 일반적으로 사용하는 인코딩 목록을 순차적으로 시도
+                encodings_to_try = []
+                if detected_encoding:
+                    encodings_to_try.append(detected_encoding)
+                # EUC-KR, CP949 같은 한글 인코딩과 UTF-8 BOM 등을 포함해 시도
+                encodings_to_try += ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr', 'shift_jis']
+
+                content = None
+                used_encoding = None
+                for enc in encodings_to_try:
+                    try:
+                        content = raw_data.decode(enc)
+                        used_encoding = enc
+                        break
+                    except Exception:
+                        continue
+
+                # 3) 모든 시도가 실패한 경우에는 errors='replace' 옵션을 사용해 UTF-8로 강제 디코딩
+                if content is None:
+                    content = raw_data.decode('utf-8', errors='replace')
+                    used_encoding = 'utf-8 (fallback with replace)'
+
+                # 읽은 내용과 인코딩 정보를 저장
+                self.files[file_path] = content
+                line_count = len(content.splitlines())
+                char_count = len(content)
+                
+                # .c 파일인 경우 구조 정보 추가
+                if file_path.endswith('.c'):
+                    result['file_type'] = 'c_file'
+                    analysis = self._analyze_c_file_structure(content)
+                    self.c_file_info[file_path] = analysis
+                    result['analysis'] = self._enhance_c_file_analysis(content, analysis)
+                    result['message'] = (
+                        f"Read C file {file_path} with encoding {used_encoding} "
+                        f"({line_count} lines, {char_count} chars) - Standard C structure detected"
+                    )
+                # .sql 파일인 경우 구조 정보 추가
+                elif file_path.endswith('.sql'):
+                    result['file_type'] = 'sql_file'
+                    analysis = self._analyze_sql_file_structure(content)
+                    self.sql_file_info[file_path] = analysis
+                    result['analysis'] = analysis
+                    result['message'] = (
+                        f"Read SQL file {file_path} with encoding {used_encoding} "
+                        f"({line_count} lines, {char_count} chars) - Oracle SQL structure detected"
+                    )
+                # .h 파일인 경우 헤더 구조 분석
+                elif file_path.endswith('.h'):
+                    result['file_type'] = 'header_file'
+                    result['analysis'] = self._analyze_header_file_structure(content)
+                    result['message'] = (
+                        f"Read Header file {file_path} with encoding {used_encoding} "
+                        f"({line_count} lines, {char_count} chars) - Header structure detected"
+                    )
+                # .xml 파일인 경우 UI 구조 분석
+                elif file_path.lower().endswith('.xml'):
+                    result['file_type'] = 'xml_file'
+                    result['analysis'] = self._analyze_xml_file_structure(content)
+                    result['message'] = (
+                        f"Read XML file {file_path} with encoding {used_encoding} "
+                        f"({line_count} lines, {char_count} chars) - XML UI structure detected"
+                    )
+                else:
+                    result['message'] = (
+                        f"Read {file_path} with encoding {used_encoding} "
+                        f"({line_count} lines, {char_count} chars)"
+                    )
+                    
+            except Exception as e:
+                result['message'] = f"Error reading file {file_path}: {e}"
+        else:
+            # 새 파일의 경우 빈 문자열로 초기화
+            self.files[file_path] = ""
+            result['message'] = f"Added new file (will be created on edit): {file_path}"
+            
+        return result
 
     def _analyze_c_file_structure(self, content):
         """C 파일의 표준 함수 구조를 분석"""
@@ -182,3 +312,130 @@ class FileManager:
         if file_path in self.sql_file_info:
             return self.sql_file_info[file_path]
         return None
+    
+    def analyze_directory_structure(self, directory_path: str) -> dict:
+        """디렉토리 구조 분석 결과를 반환"""
+        return self.tree_analyzer.analyze_directory(directory_path)
+    
+    def suggest_files_for_query(self, directory_path: str, user_query: str) -> List[str]:
+        """사용자 질문에 기반하여 관련 파일들을 추천"""
+        return self.tree_analyzer.suggest_files_for_context(directory_path, user_query)
+    
+    def find_files_by_pattern(self, directory_path: str, pattern: str) -> List[str]:
+        """패턴에 맞는 파일들을 찾기"""
+        return self.tree_analyzer.find_files_by_pattern(directory_path, pattern)
+    
+    def _enhance_c_file_analysis(self, content: str, basic_analysis: Dict) -> Dict:
+        """C 파일에 대한 향상된 분석"""
+        enhanced = basic_analysis.copy()
+        
+        # 헤더 파일 include 분석
+        includes = []
+        include_pattern = r'#include\s*[<"](.*?)[>"]'
+        for match in re.finditer(include_pattern, content):
+            include_file = match.group(1)
+            includes.append(include_file)
+        enhanced['includes'] = includes
+        
+        # IO 구조체 패턴 찾기
+        io_patterns = {
+            'input_structs': [],
+            'output_structs': [],
+            'context_structs': []
+        }
+        
+        # Input 구조체 찾기 (pio_*_in.h 패턴)
+        for include in includes:
+            if 'pio_' in include and '_in.h' in include:
+                io_patterns['input_structs'].append(include)
+            elif 'pio_' in include and '_out' in include:
+                io_patterns['output_structs'].append(include)
+        
+        # Context 구조체 찾기
+        ctx_pattern = r'typedef\s+struct\s+(\w*ctx\w*)\s+(\w+);'
+        for match in re.finditer(ctx_pattern, content, re.IGNORECASE):
+            io_patterns['context_structs'].append(match.group(2))
+        
+        enhanced['io_structures'] = io_patterns
+        
+        # DBIO 패턴 찾기
+        dbio_patterns = []
+        dbio_pattern = r'#include\s*[<"](pdb_.*?\.h)[>"]'
+        for match in re.finditer(dbio_pattern, content):
+            dbio_patterns.append(match.group(1))
+        enhanced['dbio_includes'] = dbio_patterns
+        
+        return enhanced
+    
+    def _analyze_header_file_structure(self, content: str) -> Dict:
+        """헤더 파일 구조 분석"""
+        analysis = {
+            'type': 'unknown',
+            'structures': [],
+            'defines': [],
+            'functions': []
+        }
+        
+        # 구조체 정의 찾기
+        struct_pattern = r'struct\s+(\w+)\s*\{'
+        for match in re.finditer(struct_pattern, content):
+            analysis['structures'].append(match.group(1))
+        
+        # typedef 구조체 찾기
+        typedef_pattern = r'typedef\s+struct\s+\w+\s+(\w+);'
+        for match in re.finditer(typedef_pattern, content):
+            analysis['structures'].append(match.group(1))
+        
+        # #define 찾기
+        define_pattern = r'#define\s+(\w+)'
+        for match in re.finditer(define_pattern, content):
+            analysis['defines'].append(match.group(1))
+        
+        # 헤더 파일 타입 결정
+        if 'pio_' in content and ('_in' in content or '_out' in content):
+            analysis['type'] = 'io_structure'
+        elif 'pdb_' in content:
+            analysis['type'] = 'dbio_structure'
+        elif any(func in content for func in ['void', 'int', 'long', 'char']):
+            analysis['type'] = 'function_declarations'
+        
+        return analysis
+    
+    def _analyze_xml_file_structure(self, content: str) -> Dict:
+        """XML 파일 구조 분석 (UI 화면)"""
+        analysis = {
+            'form_id': '',
+            'datasets': [],
+            'ui_components': [],
+            'functions': []
+        }
+        
+        # Form ID 찾기
+        form_id_pattern = r'FormID\(명\)\s*:\s*(\w+)'
+        match = re.search(form_id_pattern, content)
+        if match:
+            analysis['form_id'] = match.group(1)
+        
+        # Dataset 찾기
+        dataset_pattern = r'(d[sl]_\w+|DS_\w+)'
+        datasets = set(re.findall(dataset_pattern, content, re.IGNORECASE))
+        analysis['datasets'] = list(datasets)
+        
+        # UI 컴포넌트 찾기
+        ui_components = []
+        if 'gridView' in content:
+            ui_components.append('gridView')
+        if 'textbox' in content:
+            ui_components.append('textbox')
+        if 'input' in content:
+            ui_components.append('input')
+        if 'trigger' in content:
+            ui_components.append('button')
+        analysis['ui_components'] = ui_components
+        
+        # JavaScript 함수 찾기
+        js_func_pattern = r'scwin\.(\w+)\s*='
+        functions = set(re.findall(js_func_pattern, content))
+        analysis['functions'] = list(functions)
+        
+        return analysis

@@ -56,10 +56,23 @@ def main():
                 parts = user_input.split()
                 if len(parts) > 1:
                     files_to_add = [p.replace('@', '') for p in parts[1:]]
-                    message = file_manager.add(files_to_add)
-                    console.print(ui.file_added_panel(message))
+                    result = file_manager.add(files_to_add)
+                    
+                    # 기본 추가 메시지 표시
+                    if isinstance(result, dict) and 'messages' in result:
+                        console.print(ui.file_added_panel("\n".join(result['messages'])))
+                        
+                        # 파일 분석 결과가 있으면 추가로 표시
+                        if result.get('analyses'):
+                            analysis_panel = ui.file_analysis_panel(result['analyses'])
+                            if analysis_panel:
+                                console.print()
+                                console.print(analysis_panel)
+                    else:
+                        # 이전 버전 호환성
+                        console.print(ui.file_added_panel(str(result)))
                 else:
-                    console.print(ui.error_panel("사용법: /add <file1> <file2> ...", "입력 오류"))
+                    console.print(ui.error_panel("사용법: /add <file1|dir1> <file2|dir2> ...", "입력 오류"))
                 continue
 
             elif user_input.lower() == '/files':
@@ -71,6 +84,23 @@ def main():
                     console.print(ui.file_tree(file_manager.files))
                 else:
                     console.print(ui.warning_panel("추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."))
+                continue
+
+            elif user_input.lower().startswith('/analyze '):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    directory_path = parts[1].replace('@', '')  # @ 제거
+                    # 상대 경로를 절대 경로로 변환
+                    if not os.path.isabs(directory_path):
+                        directory_path = os.path.abspath(directory_path)
+                    
+                    if os.path.isdir(directory_path):
+                        analysis = file_manager.analyze_directory_structure(directory_path)
+                        console.print(ui.directory_analysis_panel(analysis))
+                    else:
+                        console.print(ui.error_panel(f"디렉토리를 찾을 수 없습니다: {directory_path}", "분석 오류"))
+                else:
+                    console.print(ui.error_panel("사용법: /analyze @<directory_path> 또는 /analyze <directory_path>", "입력 오류"))
                 continue
 
             elif user_input.lower() == '/clear':
@@ -233,7 +263,7 @@ def main():
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
-                known_commands = ['/add', '/files', '/tree', '/clear', '/preview', '/apply', 
+                known_commands = ['/add', '/files', '/tree', '/analyze', '/clear', '/preview', '/apply', 
                                 '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
@@ -243,7 +273,7 @@ def main():
                     console.print(ui.error_panel(
                         f"알 수 없는 명령어: '{command_part}'\n\n"
                         f"사용 가능한 명령어:\n"
-                        f"• 파일 관리: /add, /files, /tree, /clear\n"
+                        f"• 파일 관리: /add, /files, /tree, /analyze, /clear\n"
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
                         f"• 기타: /help, /exit\n\n"
