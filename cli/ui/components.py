@@ -91,6 +91,7 @@ class SwingUIComponents:
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
 [yellow]/analyze[/yellow] <directory> - 디렉토리 구조 분석 및 프로젝트 인사이트 제공
+[yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 [bold cyan]🤖 작업 모드:[/bold cyan]
@@ -604,13 +605,28 @@ class SwingUIComponents:
                         line_num = func_info.get('line_number', 'unknown')
                         content.append(f"    • {func_name} (line {line_num})")
                 
-                includes = analysis.get('includes', [])
+                includes = analysis.get('includes', {})
                 if includes:
-                    content.append("  📎 Header Includes:")
-                    for include in includes[:5]:  # 최대 5개만
-                        content.append(f"    • {include}")
-                    if len(includes) > 5:
-                        content.append(f"    ... and {len(includes) - 5} more")
+                    # IO Formatter 헤더들
+                    io_formatter = includes.get('io_formatter', [])
+                    if io_formatter:
+                        content.append("  📎 I/O Formatter:")
+                        for include in io_formatter:
+                            content.append(f"    • {include}")
+                    
+                    # Static Library 헤더들 (중요!)
+                    static_lib = includes.get('static_library', [])
+                    if static_lib:
+                        content.append("  📚 Static Library (Business Logic):")
+                        for include in static_lib:
+                            content.append(f"    • {include}")
+                    
+                    # DBIO Library 헤더들
+                    dbio_lib = includes.get('dbio_library', [])
+                    if dbio_lib:
+                        content.append("  🗄️ DBIO Library:")
+                        for include in dbio_lib:
+                            content.append(f"    • {include}")
                 
                 io_structures = analysis.get('io_structures', {})
                 if io_structures:
@@ -622,12 +638,6 @@ class SwingUIComponents:
                             content.append(f"    📥 Input: {struct}")
                         for struct in output_structs:
                             content.append(f"    📤 Output: {struct}")
-                
-                dbio_includes = analysis.get('dbio_includes', [])
-                if dbio_includes:
-                    content.append("  🗄️ DBIO Includes:")
-                    for dbio in dbio_includes:
-                        content.append(f"    • {dbio}")
             
             elif file_type == 'header_file':
                 # 헤더 파일 분석 결과
@@ -635,16 +645,38 @@ class SwingUIComponents:
                 content.append(f"  📋 Type: {header_type}")
                 
                 structures = analysis.get('structures', [])
+                struct_details = analysis.get('struct_details', {})
                 if structures:
                     content.append("  🏗️ Structures:")
-                    for struct in structures[:3]:  # 최대 3개만
+                    for struct in structures:
                         content.append(f"    • {struct}")
-                    if len(structures) > 3:
-                        content.append(f"    ... and {len(structures) - 3} more")
+                        # I/O 구조체인 경우 별도 테이블로 표시됨
+                        if header_type == 'io_structure' and struct in struct_details:
+                            fields = struct_details[struct]
+                            if fields:
+                                content.append(f"      📋 {len(fields)} fields (detailed table below)")
+                        # 일반 구조체인 경우 중요 필드만 표시
+                        elif struct in struct_details:
+                            fields = struct_details[struct]
+                            if fields:
+                                important_fields = [f for f in fields if f['comment']][:3]  # 코멘트 있는 중요 필드 3개
+                                for field in important_fields:
+                                    field_desc = f"{field['type']} {field['name']}"
+                                    if field['size']:
+                                        field_desc += f"[{field['size']}]"
+                                    if field['comment']:
+                                        field_desc += f" // {field['comment']}"
+                                    content.append(f"      - {field_desc}")
+                                if len(fields) > len(important_fields):
+                                    content.append(f"      ... and {len(fields) - len(important_fields)} more fields")
                 
                 defines = analysis.get('defines', [])
                 if defines:
                     content.append(f"  🔧 Defines: {len(defines)} macros")
+                    # 길이 정의들 표시 (LEN_으로 시작하는 것들)
+                    len_defines = [d for d in defines if isinstance(d, dict) and d['name'].startswith('LEN_')][:3]
+                    for define in len_defines:
+                        content.append(f"    • {define['name']} = {define['value']}")
             
             elif file_type == 'sql_file':
                 # SQL 파일 분석 결과
@@ -678,10 +710,49 @@ class SwingUIComponents:
                 if functions:
                     content.append(f"  ⚙️ Functions: {len(functions)} JavaScript functions")
         
-        return Panel(
+        # I/O 구조체 테이블 생성
+        struct_tables = []
+        for analysis_data in file_analyses:
+            file_type = analysis_data['file_type']
+            analysis = analysis_data['analysis']
+            
+            # I/O 구조체인 경우 테이블 생성
+            if file_type == 'header_file' and analysis.get('type') == 'io_structure':
+                struct_details = analysis.get('struct_details', {})
+                for struct_name, fields in struct_details.items():
+                    if fields:  # 필드가 있는 경우에만
+                        table = self._create_struct_table(struct_name, fields)
+                        struct_tables.append(table)
+        
+        # 메인 분석 패널
+        main_panel = Panel(
             "\n".join(content),
             title="🔬 File Analysis",
             title_align="left",
             style="green",
             border_style="green"
         )
+        
+        # 구조체 테이블이 있으면 함께 반환
+        if struct_tables:
+            return [main_panel] + struct_tables
+        else:
+            return main_panel
+    
+    def _create_struct_table(self, struct_name: str, fields: List[Dict]) -> Table:
+        """구조체 필드를 테이블로 생성"""
+        table = Table(title=f"📋 {struct_name} Structure", show_header=True, header_style="bold cyan")
+        table.add_column("Type", style="yellow", width=12)
+        table.add_column("Field Name", style="green", width=20)
+        table.add_column("Size", style="blue", width=15)
+        table.add_column("Comment", style="white")
+        
+        for field in fields:
+            field_type = field.get('type', '')
+            field_name = field.get('name', '')
+            field_size = field.get('size', '') or '-'
+            field_comment = field.get('comment', '') or '-'
+            
+            table.add_row(field_type, field_name, field_size, field_comment)
+        
+        return table

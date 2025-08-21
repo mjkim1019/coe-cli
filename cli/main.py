@@ -64,10 +64,16 @@ def main():
                         
                         # 파일 분석 결과가 있으면 추가로 표시
                         if result.get('analyses'):
-                            analysis_panel = ui.file_analysis_panel(result['analyses'])
-                            if analysis_panel:
+                            analysis_result = ui.file_analysis_panel(result['analyses'])
+                            if analysis_result:
                                 console.print()
-                                console.print(analysis_panel)
+                                # 결과가 리스트인 경우 (테이블 포함)
+                                if isinstance(analysis_result, list):
+                                    for panel in analysis_result:
+                                        console.print(panel)
+                                        console.print()
+                                else:
+                                    console.print(analysis_result)
                     else:
                         # 이전 버전 호환성
                         console.print(ui.file_added_panel(str(result)))
@@ -101,6 +107,66 @@ def main():
                         console.print(ui.error_panel(f"디렉토리를 찾을 수 없습니다: {directory_path}", "분석 오류"))
                 else:
                     console.print(ui.error_panel("사용법: /analyze @<directory_path> 또는 /analyze <directory_path>", "입력 오류"))
+                continue
+
+            elif user_input.lower().startswith('/info '):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    user_file_path = parts[1].replace('@', '')  # @ 제거
+                    
+                    # 여러 방식으로 파일 찾기 시도
+                    found_file_path = None
+                    
+                    # 1. 입력 경로 그대로
+                    if user_file_path in file_manager.files:
+                        found_file_path = user_file_path
+                    # 2. 절대 경로로 변환
+                    elif not os.path.isabs(user_file_path):
+                        abs_path = os.path.abspath(user_file_path)
+                        if abs_path in file_manager.files:
+                            found_file_path = abs_path
+                    # 3. 파일명만으로 검색 (basename)
+                    if not found_file_path:
+                        input_basename = os.path.basename(user_file_path)
+                        for file_path in file_manager.files.keys():
+                            if os.path.basename(file_path) == input_basename:
+                                found_file_path = file_path
+                                break
+                    # 4. 부분 경로 매칭
+                    if not found_file_path:
+                        for file_path in file_manager.files.keys():
+                            if user_file_path in file_path or file_path.endswith(user_file_path):
+                                found_file_path = file_path
+                                break
+                    
+                    if found_file_path:
+                        # 파일 분석 다시 수행
+                        result = file_manager.add_single_file(found_file_path)
+                        if result.get('analysis'):
+                            analysis_result = ui.file_analysis_panel([{
+                                'file_path': found_file_path,
+                                'file_type': result['file_type'],
+                                'analysis': result['analysis']
+                            }])
+                            if isinstance(analysis_result, list):
+                                for panel in analysis_result:
+                                    console.print(panel)
+                                    console.print()
+                            else:
+                                console.print(analysis_result)
+                        else:
+                            console.print(ui.warning_panel(f"파일 분석 정보가 없습니다: {os.path.basename(found_file_path)}"))
+                    else:
+                        # 사용 가능한 파일들 표시
+                        available_files = [os.path.basename(f) for f in file_manager.files.keys()]
+                        console.print(ui.error_panel(
+                            f"파일을 찾을 수 없습니다: {user_file_path}\n\n"
+                            f"사용 가능한 파일들:\n" + 
+                            "\n".join(f"• {f}" for f in available_files[:10]), 
+                            "파일 오류"
+                        ))
+                else:
+                    console.print(ui.error_panel("사용법: /info @<file_path>", "입력 오류"))
                 continue
 
             elif user_input.lower() == '/clear':
@@ -263,7 +329,7 @@ def main():
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
-                known_commands = ['/add', '/files', '/tree', '/analyze', '/clear', '/preview', '/apply', 
+                known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
                                 '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
@@ -273,7 +339,7 @@ def main():
                     console.print(ui.error_panel(
                         f"알 수 없는 명령어: '{command_part}'\n\n"
                         f"사용 가능한 명령어:\n"
-                        f"• 파일 관리: /add, /files, /tree, /analyze, /clear\n"
+                        f"• 파일 관리: /add, /files, /tree, /analyze, /info, /clear\n"
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
                         f"• 기타: /help, /exit\n\n"

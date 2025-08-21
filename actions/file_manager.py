@@ -188,7 +188,7 @@ class FileManager:
                 # .h 파일인 경우 헤더 구조 분석
                 elif file_path.endswith('.h'):
                     result['file_type'] = 'header_file'
-                    result['analysis'] = self._analyze_header_file_structure(content)
+                    result['analysis'] = self._analyze_header_file_structure(content, file_path)
                     result['message'] = (
                         f"Read Header file {file_path} with encoding {used_encoding} "
                         f"({line_count} lines, {char_count} chars) - Header structure detected"
@@ -329,12 +329,8 @@ class FileManager:
         """C 파일에 대한 향상된 분석"""
         enhanced = basic_analysis.copy()
         
-        # 헤더 파일 include 분석
-        includes = []
-        include_pattern = r'#include\s*[<"](.*?)[>"]'
-        for match in re.finditer(include_pattern, content):
-            include_file = match.group(1)
-            includes.append(include_file)
+        # 헤더 파일 include 분석 (섹션별로 분류)
+        includes = self._categorize_includes(content)
         enhanced['includes'] = includes
         
         # IO 구조체 패턴 찾기
@@ -344,8 +340,9 @@ class FileManager:
             'context_structs': []
         }
         
-        # Input 구조체 찾기 (pio_*_in.h 패턴)
-        for include in includes:
+        # Input/Output 구조체 찾기 (pio_*_in.h 패턴)
+        all_includes = includes.get('io_formatter', []) + includes.get('static_library', []) + includes.get('other', [])
+        for include in all_includes:
             if 'pio_' in include and '_in.h' in include:
                 io_patterns['input_structs'].append(include)
             elif 'pio_' in include and '_out' in include:
@@ -359,47 +356,135 @@ class FileManager:
         enhanced['io_structures'] = io_patterns
         
         # DBIO 패턴 찾기
-        dbio_patterns = []
-        dbio_pattern = r'#include\s*[<"](pdb_.*?\.h)[>"]'
-        for match in re.finditer(dbio_pattern, content):
-            dbio_patterns.append(match.group(1))
-        enhanced['dbio_includes'] = dbio_patterns
+        enhanced['dbio_includes'] = includes.get('dbio_library', [])
+        
+        # Static Library 헤더들 (중요한 비즈니스 로직)
+        enhanced['static_library_includes'] = includes.get('static_library', [])
         
         return enhanced
     
-    def _analyze_header_file_structure(self, content: str) -> Dict:
+    def _categorize_includes(self, content: str) -> Dict[str, List[str]]:
+        """헤더 파일들을 섹션별로 분류"""
+        categories = {
+            'system': [],           # 시스템 헤더 (<pfm*.h> 등)
+            'io_formatter': [],     # IO Formatter 섹션
+            'static_library': [],   # Static Library 섹션 (중요!)
+            'dbio_library': [],     # DBIO Library 섹션
+            'other': []
+        }
+        
+        lines = content.split('\n')
+        current_section = 'other'
+        
+        for line in lines:
+            line = line.strip()
+            
+            # 섹션 감지
+            if '--- IO Formatter   ---' in line or 'IO Formatter' in line:
+                current_section = 'io_formatter'
+                continue
+            elif '--- Static Library ---' in line or 'Static Library' in line:
+                current_section = 'static_library'
+                continue
+            elif '--- DBIO Library    ---' in line or 'DBIO Library' in line:
+                current_section = 'dbio_library'
+                continue
+            
+            # include 문 파싱
+            include_match = re.match(r'#include\s*[<"](.*?)[>"]', line)
+            if include_match:
+                include_file = include_match.group(1)
+                
+                # 시스템 헤더 분류
+                if include_file.startswith('pfm') or include_file.startswith('<'):
+                    categories['system'].append(include_file)
+                else:
+                    categories[current_section].append(include_file)
+        
+        return categories
+    
+    def _analyze_header_file_structure(self, content: str, file_path: str = '') -> Dict:
         """헤더 파일 구조 분석"""
         analysis = {
             'type': 'unknown',
             'structures': [],
+            'struct_details': {},
             'defines': [],
             'functions': []
         }
         
-        # 구조체 정의 찾기
-        struct_pattern = r'struct\s+(\w+)\s*\{'
-        for match in re.finditer(struct_pattern, content):
-            analysis['structures'].append(match.group(1))
+        # 구조체 정의와 내용 찾기
+        struct_pattern = r'struct\s+(\w+)\s*\{([^}]*)\}'
+        for match in re.finditer(struct_pattern, content, re.DOTALL):
+            struct_name = match.group(1)
+            struct_body = match.group(2)
+            analysis['structures'].append(struct_name)
+            analysis['struct_details'][struct_name] = self._parse_struct_fields(struct_body)
         
         # typedef 구조체 찾기
-        typedef_pattern = r'typedef\s+struct\s+\w+\s+(\w+);'
-        for match in re.finditer(typedef_pattern, content):
-            analysis['structures'].append(match.group(1))
+        typedef_pattern = r'typedef\s+struct\s+\w*\s*\{([^}]*)\}\s*(\w+);'
+        for match in re.finditer(typedef_pattern, content, re.DOTALL):
+            struct_body = match.group(1)
+            struct_name = match.group(2)
+            analysis['structures'].append(struct_name)
+            analysis['struct_details'][struct_name] = self._parse_struct_fields(struct_body)
         
-        # #define 찾기
-        define_pattern = r'#define\s+(\w+)'
+        # #define 찾기 (길이 정의도 포함)
+        define_pattern = r'#define\s+(\w+)(?:\s+(.+?))?(?:\n|$)'
         for match in re.finditer(define_pattern, content):
-            analysis['defines'].append(match.group(1))
+            define_name = match.group(1)
+            define_value = match.group(2).strip() if match.group(2) else ''
+            analysis['defines'].append({
+                'name': define_name,
+                'value': define_value
+            })
         
-        # 헤더 파일 타입 결정
-        if 'pio_' in content and ('_in' in content or '_out' in content):
+        # 헤더 파일 타입 결정 (파일명도 확인)
+        if ('pio_' in content and ('_in' in content or '_out' in content)) or ('pio_' in file_path and ('_in.h' in file_path or '_out' in file_path)):
             analysis['type'] = 'io_structure'
-        elif 'pdb_' in content:
+        elif 'pdb_' in content or 'pdb_' in file_path:
             analysis['type'] = 'dbio_structure'
         elif any(func in content for func in ['void', 'int', 'long', 'char']):
             analysis['type'] = 'function_declarations'
         
         return analysis
+    
+    def _parse_struct_fields(self, struct_body: str) -> List[Dict]:
+        """구조체 필드들을 파싱"""
+        fields = []
+        lines = struct_body.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('/*') or line.startswith('*') or line.startswith('//'):
+                continue
+            
+            # 필드 패턴: type field_name[size]; /* comment */
+            field_pattern = r'(\w+(?:\s*\*)?)\s+(\w+)(?:\s*\[([^\]]+)\])?\s*;(?:\s*/\*\s*(.+?)\s*\*/)?'
+            match = re.match(field_pattern, line)
+            
+            if match:
+                field_type = match.group(1).strip()
+                field_name = match.group(2)
+                field_size = match.group(3) if match.group(3) else None
+                field_comment = match.group(4) if match.group(4) else ''
+                
+                fields.append({
+                    'type': field_type,
+                    'name': field_name,
+                    'size': field_size,
+                    'comment': field_comment
+                })
+        
+        return fields
+    
+    def get_struct_info(self, file_path: str) -> Optional[Dict]:
+        """특정 헤더 파일의 구조체 정보 반환"""
+        if file_path not in self.files:
+            return None
+        
+        content = self.files[file_path]
+        return self._analyze_header_file_structure(content, file_path)
     
     def _analyze_xml_file_structure(self, content: str) -> Dict:
         """XML 파일 구조 분석 (UI 화면)"""
