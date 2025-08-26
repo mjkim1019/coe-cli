@@ -74,6 +74,79 @@ def main():
                                         console.print()
                                 else:
                                     console.print(analysis_result)
+                        
+                        # 자동으로 LLM 기반 분석 수행
+                        if result.get('analyses'):
+                            console.print("\n[bold blue]🧠 LLM 기반 심화 분석을 수행합니다...[/bold blue]")
+                            try:
+                                from coe import CoeAnalyzer
+                                analyzer = CoeAnalyzer()
+                                
+                                # 추가된 파일들 경로 수집
+                                added_files = []
+                                for analysis in result['analyses']:
+                                    added_files.append(analysis['file_path'])
+                                
+                                if added_files:
+                                    files_data = {}
+                                    for f in added_files:
+                                        files_data[f] = {
+                                            'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
+                                            'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
+                                        }
+                                    
+                                    llm_results = analyzer._perform_llm_analysis(files_data)
+                                    
+                                    # LLM 분석 결과 표시
+                                    if llm_results:
+                                        console.print()
+                                        for file_path, llm_analysis in llm_results.items():
+                                            if llm_analysis.get('purpose'):
+                                                filename = os.path.basename(file_path)
+                                                llm_content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
+                                                
+                                                if 'complexity_score' in llm_analysis:
+                                                    llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
+                                                
+                                                # Input/Output 분석 추가
+                                                if 'input_output_analysis' in llm_analysis:
+                                                    io_analysis = llm_analysis['input_output_analysis']
+                                                    if io_analysis:
+                                                        llm_content += "**📥 입력 파라미터**:\n"
+                                                        inputs = io_analysis.get('inputs', [])
+                                                        if inputs:
+                                                            for inp in inputs:
+                                                                nullable_text = " (nullable)" if inp.get('nullable', False) else " (non-null)"
+                                                                llm_content += f"  • {inp.get('name', 'N/A')} ({inp.get('type', 'N/A')}){nullable_text}: {inp.get('description', 'N/A')}\n"
+                                                        else:
+                                                            llm_content += "  • 없음\n"
+                                                        
+                                                        llm_content += "\n**📤 출력 값**:\n"
+                                                        outputs = io_analysis.get('outputs', [])
+                                                        if outputs:
+                                                            for out in outputs:
+                                                                nullable_text = " (nullable)" if out.get('nullable', False) else " (non-null)"
+                                                                llm_content += f"  • {out.get('name', 'N/A')} ({out.get('type', 'N/A')}){nullable_text}: {out.get('description', 'N/A')}\n"
+                                                        else:
+                                                            llm_content += "  • 없음\n"
+                                                        llm_content += "\n"
+                                                
+                                                if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
+                                                    llm_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
+                                                
+                                                from rich.markdown import Markdown
+                                                llm_panel = Panel(
+                                                    Markdown(llm_content.strip()),
+                                                    title=f"🧠 {filename} LLM 분석",
+                                                    border_style="magenta"
+                                                )
+                                                console.print(llm_panel)
+                                    else:
+                                        console.print("[yellow]LLM 분석 결과를 받지 못했습니다.[/yellow]")
+                            except Exception as e:
+                                console.print(f"[red]LLM 분석 중 오류 발생: {e}[/red]")
+                                import traceback
+                                console.print(f"[dim]{traceback.format_exc()}[/dim]")
                     else:
                         # 이전 버전 호환성
                         console.print(ui.file_added_panel(str(result)))
@@ -391,6 +464,36 @@ def main():
                             console.print(ui.error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
                     except Exception as e:
                         console.print(ui.warning_panel(f"미리보기 생성 중 오류: {e}"))
+                    
+                    # Edit 후 자동으로 파일 분석 수행
+                    if preview and 'error' not in preview and preview:
+                        console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
+                        try:
+                            from coe import CoeAnalyzer
+                            analyzer = CoeAnalyzer()
+                            
+                            # 수정될 파일들 추출
+                            modified_files = list(preview.keys())
+                            
+                            if modified_files:
+                                llm_results = analyzer._perform_llm_analysis(
+                                    {f: {'file_type': 'unknown', 'basic_analysis': {}}
+                                     for f in modified_files if f in file_manager.files}
+                                )
+                                
+                                # 분석 결과 요약 표시
+                                if llm_results:
+                                    console.print()
+                                    for file_path, llm_analysis in llm_results.items():
+                                        if llm_analysis.get('purpose'):
+                                            filename = os.path.basename(file_path)
+                                            summary_text = f"수정 후 예상 결과: {llm_analysis.get('purpose', 'N/A')}"
+                                            if 'complexity_score' in llm_analysis:
+                                                summary_text += f" (복잡도: {llm_analysis['complexity_score']}/10)"
+                                            
+                                            console.print(f"[dim]📊 {filename}: {summary_text}[/dim]")
+                        except Exception as e:
+                            pass  # 자동 분석 실패는 조용히 넘어감
                 else:
                     # Ask 모드: 일반 응답 표시
                     console.print(ui.ai_response_panel(response_content))
