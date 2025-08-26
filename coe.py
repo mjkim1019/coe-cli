@@ -141,7 +141,13 @@ class CoeAnalyzer:
 다음 항목들을 JSON 형태로 정확히 분석해주세요:
 
 1. purpose: 파일의 주요 목적과 역할 (한국어로 상세히)
+   **우선 순위**: 
+   - 파일 상단의 주석에서 파일 설명을 찾아 그대로 사용
+   - 주석이 없으면 코드 분석을 통해 목적 추론
+   - 예: "/* 이 파일은 사용자 관리 기능을 제공합니다 */" 같은 주석이 있으면 그 내용 사용
+
 2. key_functions: 주요 함수들과 그 역할 리스트
+
 3. input_output_analysis: {{
    "inputs": [
      {{
@@ -160,6 +166,7 @@ class CoeAnalyzer:
      }}
    ]
 }}
+
 4. dependencies: 의존성 분석 (imports, includes 등)
 5. complexity_score: 복잡도 점수 (1-10)
 6. maintainability: 유지보수성 평가 (한국어)
@@ -167,9 +174,11 @@ class CoeAnalyzer:
 8. call_patterns: 호출 관계 패턴
 
 **중요**: 
+- purpose는 파일 최상단의 주석(/* ... */ 또는 // ...)에서 파일 설명을 먼저 찾아보세요
 - input_output_analysis에서 nullable 정보를 반드시 포함하세요
 - C 함수의 포인터 파라미터는 nullable: true로 설정
 - SQL의 바인드 변수는 nullable 여부를 명시하세요
+- XML 파일의 경우 폼 필드와 데이터셋을 입출력으로 분석하세요
 - 모든 입출력 값에 대해 nullable 정보를 빠짐없이 제공하세요
 
 JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
@@ -373,28 +382,48 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                     else:
                         content += f"**주요 함수**: {llm_analysis['key_functions']}\n\n"
                 
-                # Input/Output 분석 추가
+                # Input/Output 분석을 별도 패널로 표시 준비
+                io_tables = []
                 if 'input_output_analysis' in llm_analysis:
                     io_analysis = llm_analysis['input_output_analysis']
                     if io_analysis:
-                        content += "**📥 입력 파라미터**:\n"
+                        # 입력 파라미터 테이블
                         inputs = io_analysis.get('inputs', [])
                         if inputs:
+                            input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                            input_table.add_column("파라미터명", style="cyan")
+                            input_table.add_column("타입", style="magenta") 
+                            input_table.add_column("Nullable", style="yellow")
+                            input_table.add_column("설명", style="green")
+                            
                             for inp in inputs:
-                                nullable_text = " (nullable)" if inp.get('nullable', False) else " (non-null)"
-                                content += f"  • {inp.get('name', 'N/A')} ({inp.get('type', 'N/A')}){nullable_text}: {inp.get('description', 'N/A')}\n"
-                        else:
-                            content += "  • 없음\n"
+                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                                input_table.add_row(
+                                    inp.get('name', 'N/A'),
+                                    inp.get('type', 'N/A'),
+                                    nullable_text,
+                                    inp.get('description', 'N/A')
+                                )
+                            io_tables.append(input_table)
                         
-                        content += "\n**📤 출력 값**:\n"
+                        # 출력 값 테이블
                         outputs = io_analysis.get('outputs', [])
                         if outputs:
+                            output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                            output_table.add_column("출력값명", style="cyan")
+                            output_table.add_column("타입", style="magenta")
+                            output_table.add_column("Nullable", style="yellow")
+                            output_table.add_column("설명", style="green")
+                            
                             for out in outputs:
-                                nullable_text = " (nullable)" if out.get('nullable', False) else " (non-null)"
-                                content += f"  • {out.get('name', 'N/A')} ({out.get('type', 'N/A')}){nullable_text}: {out.get('description', 'N/A')}\n"
-                        else:
-                            content += "  • 없음\n"
-                        content += "\n"
+                                nullable_text = "✓" if out.get('nullable', False) else "✗"
+                                output_table.add_row(
+                                    out.get('name', 'N/A'),
+                                    out.get('type', 'N/A'),
+                                    nullable_text,
+                                    out.get('description', 'N/A')
+                                )
+                            io_tables.append(output_table)
                 
                 if 'maintainability' in llm_analysis and llm_analysis['maintainability']:
                     content += f"**유지보수성**: {llm_analysis['maintainability']}\n\n"
@@ -407,6 +436,13 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                     title=f"📄 {filename}",
                     border_style="green"
                 )
+                self.console.print(panel)
+                
+                # Input/Output 테이블들을 별도로 표시
+                for table in io_tables:
+                    self.console.print(table)
+                    self.console.print()  # 빈 줄 추가
+                    
             else:
                 # 기본 분석만 있는 경우
                 basic_analysis = file_info.get('basic_analysis', {})
@@ -418,8 +454,7 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                     title=f"📄 {filename}",
                     border_style="yellow"
                 )
-            
-            self.console.print(panel)
+                self.console.print(panel)
 
     def _display_call_graph(self, call_graph: Dict):
         """호출 관계 그래프 표시"""

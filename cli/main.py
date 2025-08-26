@@ -140,28 +140,50 @@ def main():
                                                 if 'complexity_score' in llm_analysis:
                                                     llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
                                                 
-                                                # Input/Output 분석 추가
+                                                # Input/Output 분석을 위한 테이블 준비
+                                                io_tables = []
                                                 if 'input_output_analysis' in llm_analysis:
                                                     io_analysis = llm_analysis['input_output_analysis']
                                                     if io_analysis:
-                                                        llm_content += "**📥 입력 파라미터**:\n"
+                                                        from rich.table import Table
+                                                        
+                                                        # 입력 파라미터 테이블
                                                         inputs = io_analysis.get('inputs', [])
                                                         if inputs:
+                                                            input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                                                            input_table.add_column("파라미터명", style="cyan")
+                                                            input_table.add_column("타입", style="magenta") 
+                                                            input_table.add_column("Nullable", style="yellow")
+                                                            input_table.add_column("설명", style="green")
+                                                            
                                                             for inp in inputs:
-                                                                nullable_text = " (nullable)" if inp.get('nullable', False) else " (non-null)"
-                                                                llm_content += f"  • {inp.get('name', 'N/A')} ({inp.get('type', 'N/A')}){nullable_text}: {inp.get('description', 'N/A')}\n"
-                                                        else:
-                                                            llm_content += "  • 없음\n"
+                                                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                                                                input_table.add_row(
+                                                                    inp.get('name', 'N/A'),
+                                                                    inp.get('type', 'N/A'),
+                                                                    nullable_text,
+                                                                    inp.get('description', 'N/A')
+                                                                )
+                                                            io_tables.append(input_table)
                                                         
-                                                        llm_content += "\n**📤 출력 값**:\n"
+                                                        # 출력 값 테이블
                                                         outputs = io_analysis.get('outputs', [])
                                                         if outputs:
+                                                            output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                                                            output_table.add_column("출력값명", style="cyan")
+                                                            output_table.add_column("타입", style="magenta")
+                                                            output_table.add_column("Nullable", style="yellow")
+                                                            output_table.add_column("설명", style="green")
+                                                            
                                                             for out in outputs:
-                                                                nullable_text = " (nullable)" if out.get('nullable', False) else " (non-null)"
-                                                                llm_content += f"  • {out.get('name', 'N/A')} ({out.get('type', 'N/A')}){nullable_text}: {out.get('description', 'N/A')}\n"
-                                                        else:
-                                                            llm_content += "  • 없음\n"
-                                                        llm_content += "\n"
+                                                                nullable_text = "✓" if out.get('nullable', False) else "✗"
+                                                                output_table.add_row(
+                                                                    out.get('name', 'N/A'),
+                                                                    out.get('type', 'N/A'),
+                                                                    nullable_text,
+                                                                    out.get('description', 'N/A')
+                                                                )
+                                                            io_tables.append(output_table)
                                                 
                                                 if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
                                                     llm_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
@@ -173,6 +195,11 @@ def main():
                                                     border_style="magenta"
                                                 )
                                                 console.print(llm_panel)
+                                                
+                                                # Input/Output 테이블들을 별도로 표시
+                                                for table in io_tables:
+                                                    console.print(table)
+                                                    console.print()  # 빈 줄 추가
                                                 results_displayed += 1
                                             else:
                                                 console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
