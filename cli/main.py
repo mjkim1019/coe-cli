@@ -75,8 +75,8 @@ def main():
                                 else:
                                     console.print(analysis_result)
                         
-                        # 자동으로 LLM 기반 분석 수행
-                        if result.get('analyses'):
+                        # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
+                        if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
                             console.print("\n[bold blue]🧠 LLM 기반 심화 분석을 수행합니다...[/bold blue]")
                             try:
                                 from coe import CoeAnalyzer
@@ -84,23 +84,55 @@ def main():
                                 
                                 # 추가된 파일들 경로 수집
                                 added_files = []
-                                for analysis in result['analyses']:
-                                    added_files.append(analysis['file_path'])
+                                if result.get('analyses'):
+                                    # 기존 방식 (analyses가 있는 경우)
+                                    for analysis in result['analyses']:
+                                        added_files.append(analysis['file_path'])
+                                else:
+                                    # analyses가 없는 경우, 방금 add 명령으로 추가한 파일들 
+                                    # parts[1:]에서 파일 경로들을 가져옴
+                                    for file_path in files_to_add:
+                                        if os.path.exists(file_path):
+                                            added_files.append(file_path)
+                                
+                                console.print(f"[dim]DEBUG: 분석할 파일 수: {len(added_files)}[/dim]")
                                 
                                 if added_files:
                                     files_data = {}
                                     for f in added_files:
-                                        files_data[f] = {
-                                            'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
-                                            'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
-                                        }
+                                        if result.get('analyses'):
+                                            # 기존 분석이 있는 경우
+                                            files_data[f] = {
+                                                'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
+                                                'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
+                                            }
+                                        else:
+                                            # 기본 분석이 없는 경우
+                                            files_data[f] = {
+                                                'file_type': 'unknown',
+                                                'basic_analysis': {}
+                                            }
+                                    
+                                    console.print(f"[dim]DEBUG: files_data 구성 완료: {list(files_data.keys())}[/dim]")
+                                    console.print(f"[dim]DEBUG: file_manager.files 키들: {list(file_manager.files.keys())}[/dim]")
+                                    
+                                    # analyzer의 file_manager를 현재 file_manager로 업데이트
+                                    analyzer.file_manager = file_manager
                                     
                                     llm_results = analyzer._perform_llm_analysis(files_data)
+                                    
+                                    console.print(f"[dim]DEBUG: LLM 결과 수: {len(llm_results) if llm_results else 0}[/dim]")
+                                    if llm_results:
+                                        console.print(f"[dim]DEBUG: LLM 결과 키들: {list(llm_results.keys())}[/dim]")
+                                        for key, value in llm_results.items():
+                                            console.print(f"[dim]DEBUG: {key} -> {type(value)} with keys: {list(value.keys()) if isinstance(value, dict) else 'not dict'}[/dim]")
                                     
                                     # LLM 분석 결과 표시
                                     if llm_results:
                                         console.print()
+                                        results_displayed = 0
                                         for file_path, llm_analysis in llm_results.items():
+                                            console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
                                             if llm_analysis.get('purpose'):
                                                 filename = os.path.basename(file_path)
                                                 llm_content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
@@ -141,6 +173,12 @@ def main():
                                                     border_style="magenta"
                                                 )
                                                 console.print(llm_panel)
+                                                results_displayed += 1
+                                            else:
+                                                console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
+                                        
+                                        if results_displayed == 0:
+                                            console.print("[yellow]LLM 분석은 완료되었으나 표시할 결과가 없습니다.[/yellow]")
                                     else:
                                         console.print("[yellow]LLM 분석 결과를 받지 못했습니다.[/yellow]")
                             except Exception as e:
