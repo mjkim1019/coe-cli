@@ -38,7 +38,13 @@ swing-cli/
 │   └── command_runner.py
 ├── llm/
 │   └── service.py
+├── prompts/                    # 🆕 파일 타입별 특화 프롬프트
+│   ├── c_file_prompt.py       # C 파일 전용 분석 프롬프트
+│   ├── xml_file_prompt.py     # XML 파일 전용 분석 프롬프트
+│   ├── sql_file_prompt.py     # SQL 파일 전용 분석 프롬프트
+│   └── generic_file_prompt.py # 일반 파일 기본 프롬프트
 ├── tests/
+├── coe.py                     # 독립 실행 CLI 도구
 └── .coe/
 ```
 
@@ -60,18 +66,27 @@ swing-cli/
 
 ## 🔑 주요 기능
 
-### 1. 🧠 LLM 기반 코드 구조 분석 (`coe analyze`) ✅ 구현 완료
+### 1. 🧠 LLM 기반 코드 구조 분석 (`coe analyze`) ✅ 구현 완료 + 파일 타입별 특화
 
 | 항목 | 설명 | 구현 상태 |
 |------|------|----------|
 | 계층 구조 | 디렉토리-파일-함수 구조 트리 | ✅ 완료 |
 | 호출 관계 | 함수 간 call graph | ✅ 완료 |
-| in/out 정보 | 함수별 input/output 파라미터 추론 | ✅ 완료 |
-| 파일 요약 | 자연어 요약 (주석/내용 기반) | ✅ 완료 |
+| in/out 정보 | 함수별 input/output 파라미터 추론 (nullable 포함) | ✅ 완료 |
+| 파일 요약 | 자연어 요약 (주석 우선 추출) | ✅ 완료 |
 | 파일 카테고리화 | `controller`, `utils`, `service`, `sql`, `config` 등 | ✅ 완료 |
-| 출력 | CLI(Markdown) + Web UI (트리/그래프 시각화) | ✅ CLI 완료, Web UI 예정 |
+| 출력 | CLI(Markdown) + Rich 표 형식 | ✅ 완료 |
 | 자동 분석 | `/add` 및 `/edit` 시 자동 LLM 분석 수행 | ✅ 완료 |
 | 독립 실행 | `python coe.py analyze <files>` 명령어 지원 | ✅ 완료 |
+
+#### 📋 파일 타입별 특화 분석 ✅ 신규 구현
+
+| 파일 타입 | 분석 중점 | 특화 기능 | 구현 상태 |
+|----------|----------|----------|----------|
+| **C 파일 (.c)** | IO Formatter, c000_main_proc, DBIO 호출 | 입출력 구조체 분석, DBIO 함수 매핑, 표준 함수 역할 분석 | ✅ 완료 |
+| **XML 파일 (.xml)** | TrxCode 분석, UI 컴포넌트 | TrxCode 호출 패턴, 데이터 흐름, JavaScript 함수 분석 | ✅ 완료 |
+| **SQL 파일 (.sql)** | 바인드 변수, 테이블 조인 | 입출력 매핑, 조인 분석, Oracle 특화 기능 분석 | ✅ 완료 |
+| **기타 파일** | 일반적 코드 분석 | 함수 분석, 의존성 분석 | ✅ 완료 |
 
 ---
 

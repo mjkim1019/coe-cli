@@ -121,11 +121,39 @@ class CoeAnalyzer:
         return llm_results
 
     def _build_analysis_prompt(self, file_path: str, file_info: Dict, content: str) -> str:
-        """LLM 분석을 위한 프롬프트 구성"""
+        """파일 타입별 특화된 LLM 분석 프롬프트 구성"""
         file_type = file_info.get('file_type', 'unknown')
-        basic_analysis = file_info.get('basic_analysis', {})
         
-        prompt = f"""파일 분석 요청:
+        # 파일 타입별 전용 프롬프트 사용
+        try:
+            if file_type == 'c_file' or file_path.endswith('.c'):
+                from prompts.c_file_prompt import get_c_file_analysis_prompt
+                return get_c_file_analysis_prompt(file_path, file_info, content)
+            
+            elif file_type == 'xml_file' or file_path.lower().endswith('.xml'):
+                from prompts.xml_file_prompt import get_xml_file_analysis_prompt
+                return get_xml_file_analysis_prompt(file_path, file_info, content)
+            
+            elif file_type == 'sql_file' or file_path.endswith('.sql'):
+                from prompts.sql_file_prompt import get_sql_file_analysis_prompt
+                return get_sql_file_analysis_prompt(file_path, file_info, content)
+            
+            else:
+                # 기본 프롬프트 사용
+                from prompts.generic_file_prompt import get_generic_file_analysis_prompt
+                return get_generic_file_analysis_prompt(file_path, file_info, content)
+                
+        except ImportError as e:
+            self.console.print(f"[red]프롬프트 모듈 로드 실패: {e}[/red]")
+            # fallback to basic prompt
+            return self._get_fallback_prompt(file_path, file_info, content)
+    
+    def _get_fallback_prompt(self, file_path: str, file_info: Dict, content: str) -> str:
+        """프롬프트 로드 실패 시 fallback 프롬프트"""
+        basic_analysis = file_info.get('basic_analysis', {})
+        file_type = file_info.get('file_type', 'unknown')
+        
+        return f"""파일 분석 요청 (Fallback):
 
 파일 경로: {file_path}
 파일 타입: {file_type}
@@ -138,52 +166,13 @@ class CoeAnalyzer:
 {content[:3000]}{'...' if len(content) > 3000 else ''}
 ```
 
-다음 항목들을 JSON 형태로 정확히 분석해주세요:
+다음 항목들을 JSON 형태로 분석해주세요:
+1. purpose: 파일의 주요 목적과 역할
+2. key_functions: 주요 함수들
+3. complexity_score: 복잡도 점수 (1-10)
+4. suggestions: 개선사항
 
-1. purpose: 파일의 주요 목적과 역할 (한국어로 상세히)
-   **우선 순위**: 
-   - 파일 상단의 주석에서 파일 설명을 찾아 그대로 사용
-   - 주석이 없으면 코드 분석을 통해 목적 추론
-   - 예: "/* 이 파일은 사용자 관리 기능을 제공합니다 */" 같은 주석이 있으면 그 내용 사용
-
-2. key_functions: 주요 함수들과 그 역할 리스트
-
-3. input_output_analysis: {{
-   "inputs": [
-     {{
-       "name": "파라미터명",
-       "type": "데이터타입", 
-       "nullable": true/false,
-       "description": "파라미터 설명"
-     }}
-   ],
-   "outputs": [
-     {{
-       "name": "리턴값명",
-       "type": "데이터타입",
-       "nullable": true/false, 
-       "description": "리턴값 설명"
-     }}
-   ]
-}}
-
-4. dependencies: 의존성 분석 (imports, includes 등)
-5. complexity_score: 복잡도 점수 (1-10)
-6. maintainability: 유지보수성 평가 (한국어)
-7. suggestions: 개선 제안사항 (한국어)
-8. call_patterns: 호출 관계 패턴
-
-**중요**: 
-- purpose는 파일 최상단의 주석(/* ... */ 또는 // ...)에서 파일 설명을 먼저 찾아보세요
-- input_output_analysis에서 nullable 정보를 반드시 포함하세요
-- C 함수의 포인터 파라미터는 nullable: true로 설정
-- SQL의 바인드 변수는 nullable 여부를 명시하세요
-- XML 파일의 경우 폼 필드와 데이터셋을 입출력으로 분석하세요
-- 모든 입출력 값에 대해 nullable 정보를 빠짐없이 제공하세요
-
-JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
-        
-        return prompt
+JSON 형태로만 응답하세요."""
 
     def _parse_llm_response(self, llm_content: str) -> Dict:
         """LLM 응답을 파싱하여 구조화된 데이터로 변환"""
@@ -350,6 +339,234 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                     category_node.add(f"📄 {filename}")
         
         self.console.print(tree)
+    
+    def _create_file_type_tables(self, llm_analysis: Dict, file_path: str) -> List:
+        """파일 타입별 특화 테이블 생성"""
+        tables = []
+        
+        # C 파일 특화 테이블들
+        if file_path.endswith('.c'):
+            # IO Formatter 분석 테이블
+            if 'io_formatter_analysis' in llm_analysis:
+                io_formatter = llm_analysis['io_formatter_analysis']
+                
+                # 입력 구조체 테이블
+                if 'input_structure' in io_formatter and io_formatter['input_structure'].get('key_fields'):
+                    input_table = Table(title="📥 입력 구조체 (IO Formatter)", show_header=True, header_style="bold blue")
+                    input_table.add_column("필드명", style="cyan")
+                    input_table.add_column("타입", style="magenta") 
+                    input_table.add_column("Nullable", style="yellow")
+                    input_table.add_column("설명", style="green")
+                    
+                    for field in io_formatter['input_structure']['key_fields']:
+                        nullable_text = "✓" if field.get('nullable', False) else "✗"
+                        input_table.add_row(
+                            field.get('name', 'N/A'),
+                            field.get('type', 'N/A'),
+                            nullable_text,
+                            field.get('description', 'N/A')
+                        )
+                    tables.append(input_table)
+                
+                # 출력 구조체 테이블
+                if 'output_structure' in io_formatter and io_formatter['output_structure'].get('key_fields'):
+                    output_table = Table(title="📤 출력 구조체 (IO Formatter)", show_header=True, header_style="bold green")
+                    output_table.add_column("필드명", style="cyan")
+                    output_table.add_column("타입", style="magenta")
+                    output_table.add_column("Nullable", style="yellow")
+                    output_table.add_column("설명", style="green")
+                    
+                    for field in io_formatter['output_structure']['key_fields']:
+                        nullable_text = "✓" if field.get('nullable', False) else "✗"
+                        output_table.add_row(
+                            field.get('name', 'N/A'),
+                            field.get('type', 'N/A'),
+                            nullable_text,
+                            field.get('description', 'N/A')
+                        )
+                    tables.append(output_table)
+            
+            # DBIO 호출 분석 테이블
+            if 'dbio_analysis' in llm_analysis and llm_analysis['dbio_analysis'].get('dbio_calls'):
+                dbio_table = Table(title="🗄️ DBIO 호출 분석", show_header=True, header_style="bold magenta")
+                dbio_table.add_column("함수명", style="cyan")
+                dbio_table.add_column("목적", style="yellow")
+                dbio_table.add_column("입력 데이터", style="blue")
+                dbio_table.add_column("출력 데이터", style="green")
+                
+                for dbio_call in llm_analysis['dbio_analysis']['dbio_calls']:
+                    dbio_table.add_row(
+                        dbio_call.get('function_name', 'N/A'),
+                        dbio_call.get('purpose', 'N/A'),
+                        dbio_call.get('input_data', 'N/A'),
+                        dbio_call.get('output_data', 'N/A')
+                    )
+                tables.append(dbio_table)
+                
+        # XML 파일 특화 테이블들
+        elif file_path.lower().endswith('.xml'):
+            # TrxCode 분석 테이블
+            if 'trxcode_analysis' in llm_analysis and llm_analysis['trxcode_analysis'].get('trx_codes'):
+                trx_table = Table(title="🔄 TrxCode 분석", show_header=True, header_style="bold purple")
+                trx_table.add_column("TrxCode", style="cyan")
+                trx_table.add_column("함수명", style="magenta")
+                trx_table.add_column("목적", style="yellow")
+                trx_table.add_column("호출 시점", style="blue")
+                trx_table.add_column("설명", style="green")
+                
+                for trx in llm_analysis['trxcode_analysis']['trx_codes']:
+                    trx_table.add_row(
+                        trx.get('code', 'N/A'),
+                        trx.get('function_name', 'N/A'),
+                        trx.get('purpose', 'N/A'),
+                        trx.get('trigger', 'N/A'),
+                        trx.get('description', 'N/A')
+                    )
+                tables.append(trx_table)
+            
+            # 데이터 흐름 테이블 (XML은 required/optional로 구분)
+            if 'data_flow' in llm_analysis:
+                data_flow = llm_analysis['data_flow']
+                
+                # 입력 필드 테이블
+                if data_flow.get('input_fields'):
+                    input_table = Table(title="📥 입력 필드", show_header=True, header_style="bold blue")
+                    input_table.add_column("필드명", style="cyan")
+                    input_table.add_column("타입", style="magenta")
+                    input_table.add_column("필수여부", style="yellow")
+                    input_table.add_column("설명", style="green")
+                    
+                    for field in data_flow['input_fields']:
+                        required_text = "✓" if field.get('required', False) else "✗"
+                        input_table.add_row(
+                            field.get('name', 'N/A'),
+                            field.get('type', 'N/A'),
+                            required_text,
+                            field.get('description', 'N/A')
+                        )
+                    tables.append(input_table)
+                
+                # 출력 필드 테이블
+                if data_flow.get('output_fields'):
+                    output_table = Table(title="📤 출력 필드", show_header=True, header_style="bold green")
+                    output_table.add_column("필드명", style="cyan")
+                    output_table.add_column("타입", style="magenta")
+                    output_table.add_column("설명", style="green")
+                    
+                    for field in data_flow['output_fields']:
+                        output_table.add_row(
+                            field.get('name', 'N/A'),
+                            field.get('type', 'N/A'),
+                            field.get('description', 'N/A')
+                        )
+                    tables.append(output_table)
+                    
+        # SQL 파일 특화 테이블들
+        elif file_path.endswith('.sql'):
+            # 입출력 분석 테이블
+            if 'input_output_analysis' in llm_analysis:
+                io_analysis = llm_analysis['input_output_analysis']
+                
+                # 바인드 변수 테이블
+                if io_analysis.get('inputs'):
+                    input_table = Table(title="📥 바인드 변수", show_header=True, header_style="bold blue")
+                    input_table.add_column("변수명", style="cyan")
+                    input_table.add_column("타입", style="magenta") 
+                    input_table.add_column("Nullable", style="yellow")
+                    input_table.add_column("설명", style="green")
+                    input_table.add_column("예시", style="white")
+                    
+                    for inp in io_analysis['inputs']:
+                        nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                        input_table.add_row(
+                            inp.get('name', 'N/A'),
+                            inp.get('type', 'N/A'),
+                            nullable_text,
+                            inp.get('description', 'N/A'),
+                            inp.get('example', 'N/A')
+                        )
+                    tables.append(input_table)
+                
+                # 출력 컬럼 테이블
+                if io_analysis.get('outputs'):
+                    output_table = Table(title="📤 출력 컬럼", show_header=True, header_style="bold green")
+                    output_table.add_column("컬럼명", style="cyan")
+                    output_table.add_column("타입", style="magenta")
+                    output_table.add_column("Nullable", style="yellow")
+                    output_table.add_column("설명", style="green")
+                    output_table.add_column("출처 테이블", style="white")
+                    
+                    for out in io_analysis['outputs']:
+                        nullable_text = "✓" if out.get('nullable', False) else "✗"
+                        output_table.add_row(
+                            out.get('name', 'N/A'),
+                            out.get('type', 'N/A'),
+                            nullable_text,
+                            out.get('description', 'N/A'),
+                            out.get('table_source', 'N/A')
+                        )
+                    tables.append(output_table)
+            
+            # 테이블 조인 분석 테이블
+            if 'table_analysis' in llm_analysis and llm_analysis['table_analysis'].get('join_analysis'):
+                join_table = Table(title="🔗 테이블 조인 분석", show_header=True, header_style="bold cyan")
+                join_table.add_column("조인 타입", style="magenta")
+                join_table.add_column("테이블들", style="cyan")
+                join_table.add_column("조인 조건", style="yellow")
+                join_table.add_column("목적", style="green")
+                
+                for join in llm_analysis['table_analysis']['join_analysis']:
+                    tables_str = " ↔ ".join(join.get('tables', []))
+                    join_table.add_row(
+                        join.get('type', 'N/A'),
+                        tables_str,
+                        join.get('condition', 'N/A'),
+                        join.get('purpose', 'N/A')
+                    )
+                tables.append(join_table)
+                
+        # 기본 입출력 테이블 (다른 파일 타입들)
+        else:
+            if 'input_output_analysis' in llm_analysis:
+                io_analysis = llm_analysis['input_output_analysis']
+                
+                # 입력 파라미터 테이블
+                if io_analysis.get('inputs'):
+                    input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                    input_table.add_column("파라미터명", style="cyan")
+                    input_table.add_column("타입", style="magenta") 
+                    input_table.add_column("Nullable", style="yellow")
+                    input_table.add_column("설명", style="green")
+                    
+                    for inp in io_analysis['inputs']:
+                        nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                        input_table.add_row(
+                            inp.get('name', 'N/A'),
+                            inp.get('type', 'N/A'),
+                            nullable_text,
+                            inp.get('description', 'N/A')
+                        )
+                    tables.append(input_table)
+                
+                # 출력 값 테이블
+                if io_analysis.get('outputs'):
+                    output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                    output_table.add_column("출력값명", style="cyan")
+                    output_table.add_column("타입", style="magenta")
+                    output_table.add_column("Nullable", style="yellow")
+                    output_table.add_column("설명", style="green")
+                    
+                    for out in io_analysis['outputs']:
+                        nullable_text = "✓" if out.get('nullable', False) else "✗"
+                        output_table.add_row(
+                            out.get('name', 'N/A'),
+                            out.get('type', 'N/A'),
+                            nullable_text,
+                            out.get('description', 'N/A')
+                        )
+                    tables.append(output_table)
+        
+        return tables
 
     def _display_detailed_analysis(self, files_data: Dict):
         """파일별 상세 분석 표시"""
@@ -382,48 +599,8 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                     else:
                         content += f"**주요 함수**: {llm_analysis['key_functions']}\n\n"
                 
-                # Input/Output 분석을 별도 패널로 표시 준비
-                io_tables = []
-                if 'input_output_analysis' in llm_analysis:
-                    io_analysis = llm_analysis['input_output_analysis']
-                    if io_analysis:
-                        # 입력 파라미터 테이블
-                        inputs = io_analysis.get('inputs', [])
-                        if inputs:
-                            input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
-                            input_table.add_column("파라미터명", style="cyan")
-                            input_table.add_column("타입", style="magenta") 
-                            input_table.add_column("Nullable", style="yellow")
-                            input_table.add_column("설명", style="green")
-                            
-                            for inp in inputs:
-                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
-                                input_table.add_row(
-                                    inp.get('name', 'N/A'),
-                                    inp.get('type', 'N/A'),
-                                    nullable_text,
-                                    inp.get('description', 'N/A')
-                                )
-                            io_tables.append(input_table)
-                        
-                        # 출력 값 테이블
-                        outputs = io_analysis.get('outputs', [])
-                        if outputs:
-                            output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
-                            output_table.add_column("출력값명", style="cyan")
-                            output_table.add_column("타입", style="magenta")
-                            output_table.add_column("Nullable", style="yellow")
-                            output_table.add_column("설명", style="green")
-                            
-                            for out in outputs:
-                                nullable_text = "✓" if out.get('nullable', False) else "✗"
-                                output_table.add_row(
-                                    out.get('name', 'N/A'),
-                                    out.get('type', 'N/A'),
-                                    nullable_text,
-                                    out.get('description', 'N/A')
-                                )
-                            io_tables.append(output_table)
+                # 파일 타입별 특화된 테이블 생성
+                special_tables = self._create_file_type_tables(llm_analysis, file_path)
                 
                 if 'maintainability' in llm_analysis and llm_analysis['maintainability']:
                     content += f"**유지보수성**: {llm_analysis['maintainability']}\n\n"
@@ -438,8 +615,8 @@ JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
                 )
                 self.console.print(panel)
                 
-                # Input/Output 테이블들을 별도로 표시
-                for table in io_tables:
+                # 파일 타입별 특화 테이블들을 별도로 표시
+                for table in special_tables:
                     self.console.print(table)
                     self.console.print()  # 빈 줄 추가
                     
