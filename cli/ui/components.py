@@ -87,9 +87,11 @@ class SwingUIComponents:
         help_text = """
 [bold cyan]📋 사용 가능한 명령어:[/bold cyan]
 
-[yellow]/add[/yellow] <file1> <file2> ... - 파일을 세션에 추가
+[yellow]/add[/yellow] <file1|dir1> <file2|dir2> ... - 파일 또는 디렉토리를 재귀적으로 세션에 추가
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
+[yellow]/analyze[/yellow] <directory> - 디렉토리 구조 분석 및 프로젝트 인사이트 제공
+[yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 [bold cyan]🤖 작업 모드:[/bold cyan]
@@ -509,5 +511,248 @@ class SwingUIComponents:
                 use_cases = "일반 목적"
             
             table.add_row(strategy_name, is_current, description, use_cases)
+        
+        return table
+
+    def directory_analysis_panel(self, analysis: Dict):
+        """디렉토리 분석 결과를 패널로 표시"""
+        if 'error' in analysis:
+            return self.error_panel(analysis['error'], "디렉토리 분석 오류")
+        
+        content = []
+        
+        # 기본 정보
+        path = analysis.get('path', 'Unknown')
+        total_files = analysis.get('total_files', 0)
+        content.append(f"📁 Path: {path}")
+        content.append(f"📊 Total Files: {total_files}")
+        
+        # 프로젝트 인사이트
+        insights = analysis.get('project_insights', {})
+        if insights:
+            content.append("\n🔍 Project Analysis:")
+            content.append(f"  • Type: {insights.get('project_type', 'unknown')}")
+            content.append(f"  • Complexity: {insights.get('complexity', 'unknown')}")
+            
+            characteristics = insights.get('characteristics', [])
+            if characteristics:
+                content.append(f"  • Characteristics: {', '.join(characteristics)}")
+            
+            tech_stack = insights.get('tech_stack', [])
+            if tech_stack:
+                content.append(f"  • Tech Stack: {', '.join(tech_stack)}")
+        
+        # 파일 카테고리별 통계
+        file_categories = analysis.get('file_categories', {})
+        if file_categories:
+            content.append("\n📋 File Categories:")
+            for category, files in file_categories.items():
+                if files:
+                    count = len(files)
+                    category_display = category.replace('_', ' ').title()
+                    content.append(f"  • {category_display}: {count} files")
+                    
+                    # 주요 파일들 일부 표시
+                    if category in ['c_files', 'header_files', 'sql_files'] and count > 0:
+                        sample_files = files[:3]  # 처음 3개만
+                        for file_info in sample_files:
+                            file_name = os.path.basename(file_info['path'])
+                            content.append(f"    - {file_name}")
+                        if count > 3:
+                            content.append(f"    ... and {count - 3} more")
+        
+        # 추천 파일들
+        suggested_files = analysis.get('suggested_files', [])
+        if suggested_files:
+            content.append("\n💡 Recommended Context Files:")
+            for suggestion in suggested_files[:5]:  # 상위 5개만
+                file_name = os.path.basename(suggestion['file'])
+                reason = suggestion.get('reason', '')
+                priority = suggestion.get('priority', 'medium')
+                priority_emoji = "🔥" if priority == 'high' else "📄"
+                content.append(f"  {priority_emoji} {file_name} - {reason}")
+        
+        return Panel(
+            "\n".join(content),
+            title="🗂️ Directory Analysis",
+            title_align="left",
+            style="cyan",
+            border_style="cyan"
+        )
+
+    def file_analysis_panel(self, file_analyses: List[Dict]) -> Optional[Panel]:
+        """파일 분석 결과를 패널로 표시"""
+        if not file_analyses:
+            return None
+        
+        content = []
+        content.append("🔍 File Analysis Results:")
+        
+        for analysis_data in file_analyses:
+            file_path = analysis_data['file_path']
+            file_type = analysis_data['file_type']
+            analysis = analysis_data['analysis']
+            
+            file_name = os.path.basename(file_path)
+            content.append(f"\n📄 {file_name} ({file_type})")
+            
+            if file_type == 'c_file':
+                # C 파일 분석 결과
+                found_functions = analysis.get('found_functions', {})
+                if found_functions:
+                    content.append("  🔧 Standard Functions:")
+                    for func_name, func_info in found_functions.items():
+                        line_num = func_info.get('line_number', 'unknown')
+                        content.append(f"    • {func_name} (line {line_num})")
+                
+                includes = analysis.get('includes', {})
+                if includes:
+                    # IO Formatter 헤더들
+                    io_formatter = includes.get('io_formatter', [])
+                    if io_formatter:
+                        content.append("  📎 I/O Formatter:")
+                        for include in io_formatter:
+                            content.append(f"    • {include}")
+                    
+                    # Static Library 헤더들 (중요!)
+                    static_lib = includes.get('static_library', [])
+                    if static_lib:
+                        content.append("  📚 Static Library (Business Logic):")
+                        for include in static_lib:
+                            content.append(f"    • {include}")
+                    
+                    # DBIO Library 헤더들
+                    dbio_lib = includes.get('dbio_library', [])
+                    if dbio_lib:
+                        content.append("  🗄️ DBIO Library:")
+                        for include in dbio_lib:
+                            content.append(f"    • {include}")
+                
+                io_structures = analysis.get('io_structures', {})
+                if io_structures:
+                    input_structs = io_structures.get('input_structs', [])
+                    output_structs = io_structures.get('output_structs', [])
+                    if input_structs or output_structs:
+                        content.append("  🔄 I/O Structures:")
+                        for struct in input_structs:
+                            content.append(f"    📥 Input: {struct}")
+                        for struct in output_structs:
+                            content.append(f"    📤 Output: {struct}")
+            
+            elif file_type == 'header_file':
+                # 헤더 파일 분석 결과
+                header_type = analysis.get('type', 'unknown')
+                content.append(f"  📋 Type: {header_type}")
+                
+                structures = analysis.get('structures', [])
+                struct_details = analysis.get('struct_details', {})
+                if structures:
+                    content.append("  🏗️ Structures:")
+                    for struct in structures:
+                        content.append(f"    • {struct}")
+                        # I/O 구조체인 경우 별도 테이블로 표시됨
+                        if header_type == 'io_structure' and struct in struct_details:
+                            fields = struct_details[struct]
+                            if fields:
+                                content.append(f"      📋 {len(fields)} fields (detailed table below)")
+                        # 일반 구조체인 경우 중요 필드만 표시
+                        elif struct in struct_details:
+                            fields = struct_details[struct]
+                            if fields:
+                                important_fields = [f for f in fields if f['comment']][:3]  # 코멘트 있는 중요 필드 3개
+                                for field in important_fields:
+                                    field_desc = f"{field['type']} {field['name']}"
+                                    if field['size']:
+                                        field_desc += f"[{field['size']}]"
+                                    if field['comment']:
+                                        field_desc += f" // {field['comment']}"
+                                    content.append(f"      - {field_desc}")
+                                if len(fields) > len(important_fields):
+                                    content.append(f"      ... and {len(fields) - len(important_fields)} more fields")
+                
+                defines = analysis.get('defines', [])
+                if defines:
+                    content.append(f"  🔧 Defines: {len(defines)} macros")
+                    # 길이 정의들 표시 (LEN_으로 시작하는 것들)
+                    len_defines = [d for d in defines if isinstance(d, dict) and d['name'].startswith('LEN_')][:3]
+                    for define in len_defines:
+                        content.append(f"    • {define['name']} = {define['value']}")
+            
+            elif file_type == 'sql_file':
+                # SQL 파일 분석 결과
+                oracle_features = analysis.get('oracle_features', [])
+                if oracle_features:
+                    content.append(f"  🛢️ Oracle Features: {', '.join(oracle_features)}")
+                
+                bind_variables = analysis.get('bind_variables', [])
+                if bind_variables:
+                    content.append(f"  🔗 Bind Variables: {', '.join(bind_variables[:5])}")
+                    if len(bind_variables) > 5:
+                        content.append(f"    ... and {len(bind_variables) - 5} more")
+            
+            elif file_type == 'xml_file':
+                # XML 파일 분석 결과
+                form_id = analysis.get('form_id', '')
+                if form_id:
+                    content.append(f"  🏷️ Form ID: {form_id}")
+                
+                datasets = analysis.get('datasets', [])
+                if datasets:
+                    content.append(f"  📊 Datasets: {', '.join(datasets[:3])}")
+                    if len(datasets) > 3:
+                        content.append(f"    ... and {len(datasets) - 3} more")
+                
+                ui_components = analysis.get('ui_components', [])
+                if ui_components:
+                    content.append(f"  🎨 UI Components: {', '.join(ui_components)}")
+                
+                functions = analysis.get('functions', [])
+                if functions:
+                    content.append(f"  ⚙️ Functions: {len(functions)} JavaScript functions")
+        
+        # I/O 구조체 테이블 생성
+        struct_tables = []
+        for analysis_data in file_analyses:
+            file_type = analysis_data['file_type']
+            analysis = analysis_data['analysis']
+            
+            # I/O 구조체인 경우 테이블 생성
+            if file_type == 'header_file' and analysis.get('type') == 'io_structure':
+                struct_details = analysis.get('struct_details', {})
+                for struct_name, fields in struct_details.items():
+                    if fields:  # 필드가 있는 경우에만
+                        table = self._create_struct_table(struct_name, fields)
+                        struct_tables.append(table)
+        
+        # 메인 분석 패널
+        main_panel = Panel(
+            "\n".join(content),
+            title="🔬 File Analysis",
+            title_align="left",
+            style="green",
+            border_style="green"
+        )
+        
+        # 구조체 테이블이 있으면 함께 반환
+        if struct_tables:
+            return [main_panel] + struct_tables
+        else:
+            return main_panel
+    
+    def _create_struct_table(self, struct_name: str, fields: List[Dict]) -> Table:
+        """구조체 필드를 테이블로 생성"""
+        table = Table(title=f"📋 {struct_name} Structure", show_header=True, header_style="bold cyan")
+        table.add_column("Type", style="yellow", width=12)
+        table.add_column("Field Name", style="green", width=20)
+        table.add_column("Size", style="blue", width=15)
+        table.add_column("Comment", style="white")
+        
+        for field in fields:
+            field_type = field.get('type', '')
+            field_name = field.get('name', '')
+            field_size = field.get('size', '') or '-'
+            field_comment = field.get('comment', '') or '-'
+            
+            table.add_row(field_type, field_name, field_size, field_comment)
         
         return table

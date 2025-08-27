@@ -56,10 +56,167 @@ def main():
                 parts = user_input.split()
                 if len(parts) > 1:
                     files_to_add = [p.replace('@', '') for p in parts[1:]]
-                    message = file_manager.add(files_to_add)
-                    console.print(ui.file_added_panel(message))
+                    result = file_manager.add(files_to_add)
+                    
+                    # 기본 추가 메시지 표시
+                    if isinstance(result, dict) and 'messages' in result:
+                        console.print(ui.file_added_panel("\n".join(result['messages'])))
+                        
+                        # 파일 분석 결과가 있으면 추가로 표시
+                        if result.get('analyses'):
+                            analysis_result = ui.file_analysis_panel(result['analyses'])
+                            if analysis_result:
+                                console.print()
+                                # 결과가 리스트인 경우 (테이블 포함)
+                                if isinstance(analysis_result, list):
+                                    for panel in analysis_result:
+                                        console.print(panel)
+                                        console.print()
+                                else:
+                                    console.print(analysis_result)
+                        
+                        # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
+                        if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
+                            console.print("\n[bold blue]🧠 LLM 기반 심화 분석을 수행합니다...[/bold blue]")
+                            try:
+                                from coe import CoeAnalyzer
+                                analyzer = CoeAnalyzer()
+                                
+                                # 추가된 파일들 경로 수집
+                                added_files = []
+                                if result.get('analyses'):
+                                    # 기존 방식 (analyses가 있는 경우)
+                                    for analysis in result['analyses']:
+                                        added_files.append(analysis['file_path'])
+                                else:
+                                    # analyses가 없는 경우, 방금 add 명령으로 추가한 파일들 
+                                    # parts[1:]에서 파일 경로들을 가져옴
+                                    for file_path in files_to_add:
+                                        if os.path.exists(file_path):
+                                            added_files.append(file_path)
+                                
+                                console.print(f"[dim]DEBUG: 분석할 파일 수: {len(added_files)}[/dim]")
+                                
+                                if added_files:
+                                    files_data = {}
+                                    for f in added_files:
+                                        if result.get('analyses'):
+                                            # 기존 분석이 있는 경우
+                                            files_data[f] = {
+                                                'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
+                                                'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
+                                            }
+                                        else:
+                                            # 기본 분석이 없는 경우
+                                            files_data[f] = {
+                                                'file_type': 'unknown',
+                                                'basic_analysis': {}
+                                            }
+                                    
+                                    console.print(f"[dim]DEBUG: files_data 구성 완료: {list(files_data.keys())}[/dim]")
+                                    console.print(f"[dim]DEBUG: file_manager.files 키들: {list(file_manager.files.keys())}[/dim]")
+                                    
+                                    # analyzer의 file_manager를 현재 file_manager로 업데이트
+                                    analyzer.file_manager = file_manager
+                                    
+                                    llm_results = analyzer._perform_llm_analysis(files_data)
+                                    
+                                    console.print(f"[dim]DEBUG: LLM 결과 수: {len(llm_results) if llm_results else 0}[/dim]")
+                                    if llm_results:
+                                        console.print(f"[dim]DEBUG: LLM 결과 키들: {list(llm_results.keys())}[/dim]")
+                                        for key, value in llm_results.items():
+                                            console.print(f"[dim]DEBUG: {key} -> {type(value)} with keys: {list(value.keys()) if isinstance(value, dict) else 'not dict'}[/dim]")
+                                    
+                                    # LLM 분석 결과 표시
+                                    if llm_results:
+                                        console.print()
+                                        results_displayed = 0
+                                        for file_path, llm_analysis in llm_results.items():
+                                            console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
+                                            if llm_analysis.get('purpose'):
+                                                filename = os.path.basename(file_path)
+                                                llm_content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
+                                                
+                                                if 'complexity_score' in llm_analysis:
+                                                    llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
+                                                
+                                                # Input/Output 분석을 위한 테이블 준비
+                                                io_tables = []
+                                                if 'input_output_analysis' in llm_analysis:
+                                                    io_analysis = llm_analysis['input_output_analysis']
+                                                    if io_analysis:
+                                                        from rich.table import Table
+                                                        
+                                                        # 입력 파라미터 테이블
+                                                        inputs = io_analysis.get('inputs', [])
+                                                        if inputs:
+                                                            input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                                                            input_table.add_column("파라미터명", style="cyan")
+                                                            input_table.add_column("타입", style="magenta") 
+                                                            input_table.add_column("Nullable", style="yellow")
+                                                            input_table.add_column("설명", style="green")
+                                                            
+                                                            for inp in inputs:
+                                                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                                                                input_table.add_row(
+                                                                    inp.get('name', 'N/A'),
+                                                                    inp.get('type', 'N/A'),
+                                                                    nullable_text,
+                                                                    inp.get('description', 'N/A')
+                                                                )
+                                                            io_tables.append(input_table)
+                                                        
+                                                        # 출력 값 테이블
+                                                        outputs = io_analysis.get('outputs', [])
+                                                        if outputs:
+                                                            output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                                                            output_table.add_column("출력값명", style="cyan")
+                                                            output_table.add_column("타입", style="magenta")
+                                                            output_table.add_column("Nullable", style="yellow")
+                                                            output_table.add_column("설명", style="green")
+                                                            
+                                                            for out in outputs:
+                                                                nullable_text = "✓" if out.get('nullable', False) else "✗"
+                                                                output_table.add_row(
+                                                                    out.get('name', 'N/A'),
+                                                                    out.get('type', 'N/A'),
+                                                                    nullable_text,
+                                                                    out.get('description', 'N/A')
+                                                                )
+                                                            io_tables.append(output_table)
+                                                
+                                                if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
+                                                    llm_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
+                                                
+                                                from rich.markdown import Markdown
+                                                llm_panel = Panel(
+                                                    Markdown(llm_content.strip()),
+                                                    title=f"🧠 {filename} LLM 분석",
+                                                    border_style="magenta"
+                                                )
+                                                console.print(llm_panel)
+                                                
+                                                # Input/Output 테이블들을 별도로 표시
+                                                for table in io_tables:
+                                                    console.print(table)
+                                                    console.print()  # 빈 줄 추가
+                                                results_displayed += 1
+                                            else:
+                                                console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
+                                        
+                                        if results_displayed == 0:
+                                            console.print("[yellow]LLM 분석은 완료되었으나 표시할 결과가 없습니다.[/yellow]")
+                                    else:
+                                        console.print("[yellow]LLM 분석 결과를 받지 못했습니다.[/yellow]")
+                            except Exception as e:
+                                console.print(f"[red]LLM 분석 중 오류 발생: {e}[/red]")
+                                import traceback
+                                console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                    else:
+                        # 이전 버전 호환성
+                        console.print(ui.file_added_panel(str(result)))
                 else:
-                    console.print(ui.error_panel("사용법: /add <file1> <file2> ...", "입력 오류"))
+                    console.print(ui.error_panel("사용법: /add <file1|dir1> <file2|dir2> ...", "입력 오류"))
                 continue
 
             elif user_input.lower() == '/files':
@@ -71,6 +228,83 @@ def main():
                     console.print(ui.file_tree(file_manager.files))
                 else:
                     console.print(ui.warning_panel("추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."))
+                continue
+
+            elif user_input.lower().startswith('/analyze '):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    directory_path = parts[1].replace('@', '')  # @ 제거
+                    # 상대 경로를 절대 경로로 변환
+                    if not os.path.isabs(directory_path):
+                        directory_path = os.path.abspath(directory_path)
+                    
+                    if os.path.isdir(directory_path):
+                        analysis = file_manager.analyze_directory_structure(directory_path)
+                        console.print(ui.directory_analysis_panel(analysis))
+                    else:
+                        console.print(ui.error_panel(f"디렉토리를 찾을 수 없습니다: {directory_path}", "분석 오류"))
+                else:
+                    console.print(ui.error_panel("사용법: /analyze @<directory_path> 또는 /analyze <directory_path>", "입력 오류"))
+                continue
+
+            elif user_input.lower().startswith('/info '):
+                parts = user_input.split()
+                if len(parts) > 1:
+                    user_file_path = parts[1].replace('@', '')  # @ 제거
+                    
+                    # 여러 방식으로 파일 찾기 시도
+                    found_file_path = None
+                    
+                    # 1. 입력 경로 그대로
+                    if user_file_path in file_manager.files:
+                        found_file_path = user_file_path
+                    # 2. 절대 경로로 변환
+                    elif not os.path.isabs(user_file_path):
+                        abs_path = os.path.abspath(user_file_path)
+                        if abs_path in file_manager.files:
+                            found_file_path = abs_path
+                    # 3. 파일명만으로 검색 (basename)
+                    if not found_file_path:
+                        input_basename = os.path.basename(user_file_path)
+                        for file_path in file_manager.files.keys():
+                            if os.path.basename(file_path) == input_basename:
+                                found_file_path = file_path
+                                break
+                    # 4. 부분 경로 매칭
+                    if not found_file_path:
+                        for file_path in file_manager.files.keys():
+                            if user_file_path in file_path or file_path.endswith(user_file_path):
+                                found_file_path = file_path
+                                break
+                    
+                    if found_file_path:
+                        # 파일 분석 다시 수행
+                        result = file_manager.add_single_file(found_file_path)
+                        if result.get('analysis'):
+                            analysis_result = ui.file_analysis_panel([{
+                                'file_path': found_file_path,
+                                'file_type': result['file_type'],
+                                'analysis': result['analysis']
+                            }])
+                            if isinstance(analysis_result, list):
+                                for panel in analysis_result:
+                                    console.print(panel)
+                                    console.print()
+                            else:
+                                console.print(analysis_result)
+                        else:
+                            console.print(ui.warning_panel(f"파일 분석 정보가 없습니다: {os.path.basename(found_file_path)}"))
+                    else:
+                        # 사용 가능한 파일들 표시
+                        available_files = [os.path.basename(f) for f in file_manager.files.keys()]
+                        console.print(ui.error_panel(
+                            f"파일을 찾을 수 없습니다: {user_file_path}\n\n"
+                            f"사용 가능한 파일들:\n" + 
+                            "\n".join(f"• {f}" for f in available_files[:10]), 
+                            "파일 오류"
+                        ))
+                else:
+                    console.print(ui.error_panel("사용법: /info @<file_path>", "입력 오류"))
                 continue
 
             elif user_input.lower() == '/clear':
@@ -233,7 +467,7 @@ def main():
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
-                known_commands = ['/add', '/files', '/tree', '/clear', '/preview', '/apply', 
+                known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
                                 '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
@@ -243,7 +477,7 @@ def main():
                     console.print(ui.error_panel(
                         f"알 수 없는 명령어: '{command_part}'\n\n"
                         f"사용 가능한 명령어:\n"
-                        f"• 파일 관리: /add, /files, /tree, /clear\n"
+                        f"• 파일 관리: /add, /files, /tree, /analyze, /info, /clear\n"
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
                         f"• 기타: /help, /exit\n\n"
@@ -295,6 +529,36 @@ def main():
                             console.print(ui.error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
                     except Exception as e:
                         console.print(ui.warning_panel(f"미리보기 생성 중 오류: {e}"))
+                    
+                    # Edit 후 자동으로 파일 분석 수행
+                    if preview and 'error' not in preview and preview:
+                        console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
+                        try:
+                            from coe import CoeAnalyzer
+                            analyzer = CoeAnalyzer()
+                            
+                            # 수정될 파일들 추출
+                            modified_files = list(preview.keys())
+                            
+                            if modified_files:
+                                llm_results = analyzer._perform_llm_analysis(
+                                    {f: {'file_type': 'unknown', 'basic_analysis': {}}
+                                     for f in modified_files if f in file_manager.files}
+                                )
+                                
+                                # 분석 결과 요약 표시
+                                if llm_results:
+                                    console.print()
+                                    for file_path, llm_analysis in llm_results.items():
+                                        if llm_analysis.get('purpose'):
+                                            filename = os.path.basename(file_path)
+                                            summary_text = f"수정 후 예상 결과: {llm_analysis.get('purpose', 'N/A')}"
+                                            if 'complexity_score' in llm_analysis:
+                                                summary_text += f" (복잡도: {llm_analysis['complexity_score']}/10)"
+                                            
+                                            console.print(f"[dim]📊 {filename}: {summary_text}[/dim]")
+                        except Exception as e:
+                            pass  # 자동 분석 실패는 조용히 넘어감
                 else:
                     # Ask 모드: 일반 응답 표시
                     console.print(ui.ai_response_panel(response_content))

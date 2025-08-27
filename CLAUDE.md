@@ -1,0 +1,147 @@
+# 🌀 Swing CLI 프로젝트
+
+`Swing CLI`는 LLM 백엔드와 통신하여, 사용자가 코드에 대해 **질문하고**, **수정하고**, **테스트하며**, **코드 구조를 분석**할 수 있는 대화형 CLI 도구입니다.
+
+## 프로젝트 구조
+
+- `cli/` - CLI 인터페이스 관련 코드
+  - `main.py` - 메인 CLI 애플리케이션
+  - `completer.py` - 자동완성 기능
+  - `core/` - 핵심 기능 모듈들
+    - `context_manager.py` - 프롬프트 빌딩 관리
+    - `ask_prompts.py` - ask 모드용 프롬프트
+    - `edit_prompts.py` - edit 모드용 프롬프트
+    - `base_prompts.py` - 기본 프롬프트
+- `actions/` - 파일 및 명령 처리 액션
+  - `file_manager.py` - 파일 관리 기능
+  - `command_runner.py` - 명령 실행 기능
+- `llm/` - LLM 서비스 연동
+  - `service.py` - LLM API 통신 서비스
+- `prompts/` - 파일 타입별 특화 분석 프롬프트 ✅
+  - `c_file_prompt.py` - C 파일 전용 분석 프롬프트
+  - `xml_file_prompt.py` - XML 파일 전용 분석 프롬프트
+  - `sql_file_prompt.py` - SQL 파일 전용 분석 프롬프트
+  - `generic_file_prompt.py` - 일반 파일 기본 프롬프트
+- `tests/` - 테스트 파일 및 픽스처
+- `coe.py` - 독립 실행 CLI 도구 ✅
+
+## 기술 스택
+
+- **Language**: Python 3.8+
+- **CLI Framework**: Click
+- **Interactive Interface**: prompt_toolkit
+- **LLM Integration**: OpenAI API
+- **HTTP Client**: requests
+
+## 주요 기능
+
+1. **🧠 LLM 기반 코드 구조 분석** ✅: 계층 구조, 호출 관계, 파일 카테고리화, 자연어 요약 (`coe analyze` 명령어 구현 완료)
+2. **💬 대화형 REPL** ✅: prompt_toolkit을 사용한 명령어 기반 인터페이스 및 자동완성
+3. **🧩 파일 타입별 특화 분석** ✅: C 파일(.c), XML 파일(.xml), SQL 파일(.sql) 전용 프롬프트 지원
+4. **🔍 자동 분석** ✅: `/add` 및 `/edit` 시 파일 타입별 LLM 기반 자동 분석 수행
+5. **🧪 자동 테스트**: 파일 저장/수정 시 자동 테스트 실행 (Makefile, CMake 지원) - 개발 예정
+6. **🧵 세션 관리**: 세션 저장/복구, LLM 기반 자동 컨텍스트 구성 - 개발 예정
+7. **🧬 정교한 diff/patch**: 변경사항 분석, 패치 적용, 롤백, 자동 백업 - 개발 예정
+8. **🧠 MCP (Multi-step Code Planning)**: LLM이 복잡한 요청을 단계별로 분해하여 실행 - 개발 예정
+9. **🔐 권한 프롬프트**: LLM 호출, 실행 작업 등 사전 확인 시스템 - 개발 예정
+
+## 실행 방법
+
+1. 백엔드 서버 실행: `docker-compose up -d`
+2. 가상환경 활성화: `source .venv/bin/activate`
+3. 의존성 설치: `pip3 install -r requirements.txt`
+4. CLI 실행: `python3 cli/main.py`
+
+## 주요 명령어
+
+### 현재 구현된 명령어
+- `/add <파일>` - 파일을 컨텍스트에 추가
+- `/ask` - 질문 모드
+- `/edit` - 수정 모드 (whole/block/udiff 지원)
+- `/test` - 테스트 실행
+- `/preview` - 변경사항 미리보기
+- `/apply` - 변경사항 적용
+- `/help` - 도움말 표시
+- `/exit` - CLI 종료
+
+### 구현 완료 명령어
+- `coe analyze` - 코드 구조 분석 (`python coe.py analyze <files>`) ✅
+- `coe.py version` - 버전 정보 표시 ✅
+
+### 개발 예정 명령어
+- `coe test` - 테스트 실행
+- `coe diff` - 변경점 확인
+- `coe patch` - 수정 적용
+- `coe revert` - 수정 롤백
+- `coe save-session` - 세션 저장
+- `coe resume` - 세션 복구
+- `coe web` - Web UI 실행 (트리/그래프 시각화)
+
+## 파일 타입별 특화 분석 시스템 ✅
+
+### C 파일 (.c) - IO Formatter 중심 분석
+C 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
+
+**핵심 분석 대상:**
+- **IO Formatter**: 입출력 구조체 분석
+- **c000_main_proc**: 메인 프로세스 로직 분석  
+- **DBIO 호출 패턴**: 어떤 DBIO 함수를 호출하여 출력을 생성하는지 분석
+
+**표준 함수 구조 자동 인식:**
+- `a000_init_proc`: 프로그램 초기화 함수
+- `b000_input_validation`: 입력 데이터 검증 수행
+- `c000_main_proc`: 실제 프로그램의 주요 로직 처리
+- `z999_err_exit_proc`: 프로그램 에러 종료 처리
+
+### XML 파일 (.xml) - TrxCode 중심 분석
+XML 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
+
+**핵심 분석 대상:**
+- **TrxCode 호출 패턴**: 어떤 TrxCode를 호출하고 있는지 분석
+- **TrxCode 함수 바디**: TrxCode가 있는 함수를 중점적으로 분석
+- **UI 컴포넌트**: 그리드, 입력필드, 버튼, 데이터셋 분석
+- **JavaScript 함수**: scwin.xxx 형태의 함수 분석
+- **데이터 흐름**: 입력 필드와 출력 결과의 매핑 관계
+
+### SQL 파일 (.sql) - 입출력 및 테이블 조인 중심 분석
+SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
+
+**핵심 분석 대상:**
+- **입출력 값 분석**: 바인드 변수(:variable)와 SELECT 결과 컬럼의 nullable 여부
+- **테이블 조인 관계**: 어떤 테이블을 조인하고 있는지와 조인 목적 분석
+- **Oracle 특화 기능**: 힌트, 함수, (+) 조인 등 사용 패턴 분석
+- **성능 최적화**: 쿼리 복잡도와 최적화 제안사항
+
+**Oracle SQL 특징 자동 분석:**
+- **오라클 힌트**: `/*+ index(...) use_nl(...) */` 등의 성능 최적화 힌트
+- **바인드 변수**: `:svc_mgmt_num`, `:bas_dt` 등의 파라미터 및 nullable 정보
+- **아우터 조인**: Oracle 전용 `(+)` 구문
+- **오라클 함수**: NVL, TO_CHAR, SYSDATE 등
+- **특수 날짜 패턴**: `99991231235959`, `99991231` 등의 무한대 날짜 패턴
+
+### 일반 파일 (기타) - 기본 분석
+기타 파일 타입에 대해서는 일반적인 코드 분석을 수행합니다:
+- 파일 목적 (주석 우선 추출)
+- 주요 함수 및 의존성 분석
+- 입출력 파라미터의 nullable 정보 포함
+
+## 특수 용어 인식
+
+### DBIO (Database Input/Output)
+사용자가 "dbio"에 대해 질문할 때 자동으로 데이터베이스 입출력 관련 컨텍스트로 인식합니다:
+- SQL 쿼리 작성 및 최적화
+- 데이터베이스 연결 및 트랜잭션 처리
+- 데이터 입출력 로직 분석
+- 성능 튜닝 관련 질문
+
+## 개발 가이드
+
+이 프로젝트를 수정할 때는:
+- Python 코딩 스타일을 일관되게 유지
+- prompt_toolkit과 click 라이브러리 사용 패턴 준수
+- 모듈화된 구조 유지 (cli, actions, llm, prompts 모듈 분리)
+- 한국어 사용자 친화적 메시지 제공
+- **파일 타입별 특화 분석**: 파일 확장자에 따라 적절한 전용 프롬프트 사용
+- **nullable 정보 필수**: 모든 입출력 파라미터에 nullable 여부 포함
+- **디버그 로그 유지**: LLM 분석 과정의 투명성을 위해 디버그 정보 출력
+- **Rich 테이블 형식**: 분석 결과를 보기 좋은 표 형태로 출력
