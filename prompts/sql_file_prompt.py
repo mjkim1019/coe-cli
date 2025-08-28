@@ -102,9 +102,7 @@ def get_sql_file_analysis_prompt(file_path: str, file_info: dict, content: str) 
    "optimization_hints": ["최적화 제안사항들"]
 }}
 
-8. complexity_score: 복잡도 점수 (1-10)
-9. maintainability: 유지보수성 평가 (한국어)
-10. suggestions: SQL 쿼리 개선 제안사항 (한국어)
+8. suggestions: SQL 쿼리 개선 제안사항 (한국어)
 
 **SQL 파일 분석 중점사항**:
 - 모든 바인드 변수(:variable)의 용도와 nullable 여부를 정확히 분석
