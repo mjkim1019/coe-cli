@@ -77,7 +77,7 @@ def main():
                         
                         # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
                         if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
-                            console.print("\n[bold blue]🧠 LLM 기반 심화 분석을 수행합니다...[/bold blue]")
+                            console.print("\n[bold blue] LLM 기반 심화 분석을 수행합니다...[/bold blue]")
                             try:
                                 from coe import CoeAnalyzer
                                 analyzer = CoeAnalyzer()
@@ -133,9 +133,19 @@ def main():
                                         results_displayed = 0
                                         for file_path, llm_analysis in llm_results.items():
                                             console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
-                                            if llm_analysis.get('purpose'):
+                                            if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
                                                 filename = os.path.basename(file_path)
-                                                llm_content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
+                                                # purpose 텍스트를 의미 단위로 줄바꿈
+                                                purpose_text = llm_analysis.get('purpose', 'N/A')
+                                                # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
+                                                import re
+                                                # 문장을 의미 단위로 분리
+                                                purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
+                                                purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
+                                                purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
+                                                purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
+                                                
+                                                llm_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
                                                 
                                                 if 'complexity_score' in llm_analysis:
                                                     llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
@@ -191,7 +201,7 @@ def main():
                                                 from rich.markdown import Markdown
                                                 llm_panel = Panel(
                                                     Markdown(llm_content.strip()),
-                                                    title=f"🧠 {filename} LLM 분석",
+                                                    title=f" {filename} LLM 분석",
                                                     border_style="magenta"
                                                 )
                                                 console.print(llm_panel)
@@ -201,6 +211,35 @@ def main():
                                                     console.print(table)
                                                     console.print()  # 빈 줄 추가
                                                 results_displayed += 1
+                                            elif llm_analysis.get('purpose') == 'LLM 분석 결과 파싱 실패':
+                                                # 파싱 실패 시에도 raw_response에서 purpose 추출 시도
+                                                raw_response = llm_analysis.get('raw_response', '')
+                                                if 'purpose' in raw_response:
+                                                    import re
+                                                    # raw_response에서 purpose 값 추출
+                                                    match = re.search(r'"purpose":\s*"([^"]+)"', raw_response)
+                                                    if match:
+                                                        purpose_text = match.group(1)
+                                                        # 의미 단위로 줄바꿈 처리
+                                                        purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)
+                                                        purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)
+                                                        purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)
+                                                        purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)
+                                                        
+                                                        filename = os.path.basename(file_path)
+                                                        console.print()
+                                                        from rich.markdown import Markdown
+                                                        fallback_panel = Panel(
+                                                            Markdown(f"**목적**: \n{purpose_formatted.strip()}\n\n*JSON 파싱은 실패했지만 분석 결과를 추출했습니다.*"),
+                                                            title=f" {filename} LLM 분석 (부분)",
+                                                            border_style="yellow"
+                                                        )
+                                                        console.print(fallback_panel)
+                                                        results_displayed += 1
+                                                    else:
+                                                        console.print(f"[dim]DEBUG: raw_response에서도 purpose 추출 실패[/dim]")
+                                                else:
+                                                    console.print(f"[dim]DEBUG: {file_path} - 파싱 실패, raw_response: {raw_response[:200]}...[/dim]")
                                             else:
                                                 console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
                                         
@@ -305,6 +344,19 @@ def main():
                         ))
                 else:
                     console.print(ui.error_panel("사용법: /info @<file_path>", "입력 오류"))
+                continue
+
+            elif user_input.lower() == '/session':
+                session_id = llm_service.get_session_id()
+                if session_id:
+                    console.print(ui.info_panel(f"현재 세션 ID: {session_id}", "세션 정보"))
+                else:
+                    console.print(ui.info_panel("활성 세션이 없습니다.", "세션 정보"))
+                continue
+
+            elif user_input.lower() == '/session-reset':
+                llm_service.reset_session()
+                console.print(ui.success_panel("세션이 초기화되었습니다.", "세션 리셋"))
                 continue
 
             elif user_input.lower() == '/clear':
@@ -468,7 +520,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -480,6 +532,7 @@ def main():
                         f"• 파일 관리: /add, /files, /tree, /analyze, /info, /clear\n"
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
+                        f"• 세션 관리: /session, /session-reset\n"
                         f"• 기타: /help, /exit\n\n"
                         f"'/help' 명령어로 자세한 도움말을 확인하세요.",
                         "명령어 오류"

@@ -171,41 +171,26 @@ class FileManager:
                     analysis = self._analyze_c_file_structure(content)
                     self.c_file_info[file_path] = analysis
                     result['analysis'] = self._enhance_c_file_analysis(content, analysis)
-                    result['message'] = (
-                        f"Read C file {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars) - Standard C structure detected"
-                    )
+                    result['message'] = f"Read {file_path}, {line_count} lines"
                 # .sql 파일인 경우 구조 정보 추가
                 elif file_path.endswith('.sql'):
                     result['file_type'] = 'sql_file'
                     analysis = self._analyze_sql_file_structure(content)
                     self.sql_file_info[file_path] = analysis
                     result['analysis'] = analysis
-                    result['message'] = (
-                        f"Read SQL file {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars) - Oracle SQL structure detected"
-                    )
+                    result['message'] = f"Read {file_path}, {line_count} lines"
                 # .h 파일인 경우 헤더 구조 분석
                 elif file_path.endswith('.h'):
                     result['file_type'] = 'header_file'
                     result['analysis'] = self._analyze_header_file_structure(content, file_path)
-                    result['message'] = (
-                        f"Read Header file {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars) - Header structure detected"
-                    )
+                    result['message'] = f"Read {file_path}, {line_count} lines"
                 # .xml 파일인 경우 UI 구조 분석
                 elif file_path.lower().endswith('.xml'):
                     result['file_type'] = 'xml_file'
                     result['analysis'] = self._analyze_xml_file_structure(content)
-                    result['message'] = (
-                        f"Read XML file {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars) - XML UI structure detected"
-                    )
+                    result['message'] = f"Read {file_path}, {line_count} lines"
                 else:
-                    result['message'] = (
-                        f"Read {file_path} with encoding {used_encoding} "
-                        f"({line_count} lines, {char_count} chars)"
-                    )
+                    result['message'] = f"Read {file_path}, {line_count} lines"
                     
             except Exception as e:
                 result['message'] = f"Error reading file {file_path}: {e}"
@@ -490,33 +475,46 @@ class FileManager:
         """XML 파일 구조 분석 (UI 화면)"""
         analysis = {
             'form_id': '',
-            'datasets': [],
-            'ui_components': [],
+            'form_description': '',
+            'datalist_ids': [],
+            'trx_codes': [],
+            'svc_combo_count': 0,
             'functions': []
         }
         
         # Form ID 찾기
-        form_id_pattern = r'FormID\(명\)\s*:\s*(\w+)'
+        form_id_pattern = r'FormID\(명\)\s*:\s*(\S+)'
         match = re.search(form_id_pattern, content)
         if match:
-            analysis['form_id'] = match.group(1)
+            analysis['form_id'] = match.group(1).replace('.XML', '')  # .XML 확장자 제거
         
-        # Dataset 찾기
-        dataset_pattern = r'(d[sl]_\w+|DS_\w+)'
-        datasets = set(re.findall(dataset_pattern, content, re.IGNORECASE))
-        analysis['datasets'] = list(datasets)
+        # Form 설명 찾기
+        form_desc_pattern = r'Form\s+설명\s*:\s*(.+?)(?:\n|\*)'
+        match = re.search(form_desc_pattern, content)
+        if match:
+            analysis['form_description'] = match.group(1).strip()
         
-        # UI 컴포넌트 찾기
-        ui_components = []
-        if 'gridView' in content:
-            ui_components.append('gridView')
-        if 'textbox' in content:
-            ui_components.append('textbox')
-        if 'input' in content:
-            ui_components.append('input')
-        if 'trigger' in content:
-            ui_components.append('button')
-        analysis['ui_components'] = ui_components
+        # dataList의 id들 찾기
+        datalist_pattern = r'<w2:dataList[^>]*id\s*=\s*["\'](\w+)["\']'
+        datalist_ids = set(re.findall(datalist_pattern, content, re.IGNORECASE))
+        analysis['datalist_ids'] = list(datalist_ids)
+        
+        # TrxCode 찾기 (다양한 패턴 지원)
+        trx_code_patterns = [
+            r'var\s+TrxCode\s*=\s*["\']([^"\']+)["\']',  # var TrxCode = "ZORDSS0340082_TR01"
+            r'TrxCode\s*:\s*["\']([^"\']+)["\']',        # TrxCode: "ZORDSS0340082_TR01" 
+            r'TP\s*:\s*["\']([^"\']+)["\']'              # TP: "ZORDSS0340082_TR01"
+        ]
+        trx_codes = set()
+        for pattern in trx_code_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            trx_codes.update(matches)
+        analysis['trx_codes'] = list(trx_codes)
+        
+        # svcCombo 개수 찾기
+        svc_combo_pattern = r'svcCombo'
+        svc_combo_matches = re.findall(svc_combo_pattern, content, re.IGNORECASE)
+        analysis['svc_combo_count'] = len(svc_combo_matches)
         
         # JavaScript 함수 찾기
         js_func_pattern = r'scwin\.(\w+)\s*='
