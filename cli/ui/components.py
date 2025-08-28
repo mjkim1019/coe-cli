@@ -106,6 +106,9 @@ class SwingUIComponents:
 [yellow]/rollback[/yellow] <ID> - 특정 편집 작업 되돌리기
 [yellow]/debug[/yellow] - 마지막 edit 응답 디버깅 정보
 
+[bold cyan]🌐 세션 관리:[/bold cyan]
+[yellow]/session[/yellow] - 현재 세션 ID 확인
+[yellow]/session-reset[/yellow] - 세션 초기화
 
 [yellow]/help[/yellow] - 이 도움말 메시지 표시
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
@@ -202,6 +205,14 @@ class SwingUIComponents:
             f"[green]✅ {message}[/green]",
             title=title,
             style="green"
+        )
+
+    def info_panel(self, message: str, title: str = "정보"):
+        """정보 패널"""
+        return Panel(
+            f"[blue]ℹ️  {message}[/blue]",
+            title=title,
+            style="blue"
         )
 
     def loading_spinner(self, message: str = "AI가 생각중입니다..."):
@@ -696,15 +707,23 @@ class SwingUIComponents:
                 if form_id:
                     content.append(f"  🏷️ Form ID: {form_id}")
                 
-                datasets = analysis.get('datasets', [])
-                if datasets:
-                    content.append(f"  📊 Datasets: {', '.join(datasets[:3])}")
-                    if len(datasets) > 3:
-                        content.append(f"    ... and {len(datasets) - 3} more")
+                form_description = analysis.get('form_description', '')
+                if form_description:
+                    content.append(f"  📝 Form 설명: {form_description}")
                 
-                ui_components = analysis.get('ui_components', [])
-                if ui_components:
-                    content.append(f"  🎨 UI Components: {', '.join(ui_components)}")
+                datalist_ids = analysis.get('datalist_ids', [])
+                if datalist_ids:
+                    content.append(f"  📊 DataList IDs: {', '.join(datalist_ids[:3])}")
+                    if len(datalist_ids) > 3:
+                        content.append(f"    ... and {len(datalist_ids) - 3} more")
+                
+                trx_codes = analysis.get('trx_codes', [])
+                if trx_codes:
+                    content.append(f"  🔄 TrxCodes: {len(trx_codes)}개 ({', '.join(trx_codes[:2])}{'...' if len(trx_codes) > 2 else ''})")
+                
+                svc_combo_count = analysis.get('svc_combo_count', 0)
+                if svc_combo_count > 0:
+                    content.append(f"  🎛️ svcCombo: {svc_combo_count}개")
                 
                 functions = analysis.get('functions', [])
                 if functions:

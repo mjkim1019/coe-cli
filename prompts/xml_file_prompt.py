@@ -21,8 +21,13 @@ def get_xml_file_analysis_prompt(file_path: str, file_info: dict, content: str) 
 **XML 파일 전용 분석**: 다음 항목들을 JSON 형태로 정확히 분석해주세요:
 
 1. purpose: UI 화면의 주요 목적과 역할 (한국어로 상세히)
-   - **우선 순위**: XML 파일 상단의 주석에서 화면 설명을 찾아 그대로 사용
-   - 주석이 없으면 FormID나 화면 구성요소를 기반으로 목적 추론
+   - **분석 방법 (우선순위 순서)**:
+     a) 먼저 XML 파일 상단의 주석에서 화면 설명을 찾아 사용
+     b) 기본 분석 결과의 정보 적극 활용: Form ID, Datasets, UI Components, Functions
+     c) JavaScript 함수들과 TrxCode 패턴 분석
+     d) UI 컴포넌트의 ID와 이름 패턴에서 업무 도메인 추론
+   - **출력 형식**: "[FormID] [구체적인 업무 설명]. 입력데이터는 [입력 컴포넌트와 데이터]를 포함하고, 결과는 [출력/처리 방식]을 제공하는 화면."
+   - **예시**: "ZORDSS0340082 서비스 가입 관리 화면. 입력데이터는 고객정보와 서비스 조건을 포함하고, 결과는 가입/정지 처리 상태와 이력을 제공하는 화면."
 
 2. form_info: {{
    "form_id": "폼 ID (FormID)",
@@ -78,17 +83,14 @@ def get_xml_file_analysis_prompt(file_path: str, file_info: dict, content: str) 
    }}
 ]
 
-7. complexity_score: 복잡도 점수 (1-10)
-8. maintainability: 유지보수성 평가 (한국어)  
-9. suggestions: XML UI 개선 제안사항 (한국어)
 
 **XML 파일 분석 중점사항**:
-- TrxCode를 포함하는 함수들을 중점적으로 분석
-- scwin.xxx 형태의 JavaScript 함수에서 TrxCode 사용 패턴 파악
-- 각 TrxCode의 비즈니스 목적과 데이터 흐름 분석
-- UI 컴포넌트와 데이터셋 간의 연결 관계 파악
-- 사용자 입력 필드와 출력 결과 필드의 매핑 관계 분석
-- XML에서는 nullable 개념보다는 required/optional 필드로 구분
+- **기본 분석 결과 활용 필수**: Form ID, Datasets, UI Components, Functions 정보를 반드시 purpose 도출에 활용
+- **구체적 업무 도메인 파악**: 단순한 "화면" 대신 실제 업무 기능 (가입, 조회, 관리 등) 명시  
+- **TrxCode 패턴**: scwin.xxx 함수에서 TrxCode 사용 패턴과 비즈니스 목적 분석
+- **데이터 흐름**: UI 컴포넌트 → 입력 데이터 → TrxCode 호출 → 출력 결과의 전체 흐름
+- **컴포넌트 연결**: 입력 필드, 버튼, 그리드, 데이터셋 간의 상호작용 관계
+- **업무 컨텍스트**: 파일명, FormID, 컴포넌트 ID에서 업무 도메인 추론하여 구체적 목적 도출
 
 JSON 형태로만 응답하고, 다른 텍스트는 포함하지 마세요."""
     
