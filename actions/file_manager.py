@@ -256,9 +256,15 @@ class FileManager:
         hints = re.findall(hint_pattern, content)
         sql_features['hints'] = [hint.strip() for hint in hints]
         
-        # 바인드 변수 찾기 (:variable)
+        # 바인드 변수 찾기 (:variable) - 주석 제외
+        # 먼저 주석을 제거한 후 바인드 변수 찾기
+        # -- 주석 제거
+        content_no_line_comments = re.sub(r'--.*$', '', content, flags=re.MULTILINE)
+        # /* */ 주석 제거
+        content_no_comments = re.sub(r'/\*.*?\*/', '', content_no_line_comments, flags=re.DOTALL)
+        
         bind_pattern = r':(\w+)'
-        binds = re.findall(bind_pattern, content)
+        binds = re.findall(bind_pattern, content_no_comments)
         sql_features['bind_variables'] = list(set(binds))
         
         # 아우터 조인 찾기 ((+))
