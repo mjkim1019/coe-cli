@@ -38,6 +38,9 @@ path/to/exact/filename.ext
    - Ensure all imports/dependencies are maintained
    - Test logic flow in your head before responding
 
+6. **주석 관련 중요 규칙 (CRITICAL RULE for Comments)**:
+   - **절대로 기존 한글 주석을 수정하거나 삭제하지 마세요.** (Do NOT modify or delete any existing Korean comments.)
+
 EXAMPLE RESPONSE FORMAT:
 
 src/main.py
