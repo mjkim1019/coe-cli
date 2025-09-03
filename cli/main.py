@@ -44,16 +44,16 @@ def main():
         try:
             user_input = session.prompt("> ")
 
-            if user_input.lower() in ('/exit', '/quit'):
+            if user_input.strip().lower() in ('/exit', '/quit'):
                 console.print(ui.goodbye_panel())
                 break
 
-            elif user_input.lower() == '/help':
+            elif user_input.strip().lower() == '/help':
                 console.print(ui.help_panel())
                 continue
 
-            elif user_input.lower().startswith('/add '):
-                parts = user_input.split()
+            elif user_input.strip().lower().startswith('/add '):
+                parts = user_input.strip().split()
                 if len(parts) > 1:
                     files_to_add = [p.replace('@', '') for p in parts[1:]]
                     result = file_manager.add(files_to_add)
@@ -140,7 +140,7 @@ def main():
                                                 # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
                                                 import re
                                                 # 문장을 의미 단위로 분리
-                                                purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
+                                                purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
                                                 purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
                                                 purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
                                                 purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
@@ -216,7 +216,7 @@ def main():
                                                     if match:
                                                         purpose_text = match.group(1)
                                                         # 의미 단위로 줄바꿈 처리
-                                                        purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)
+                                                        purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)
                                                         purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)
                                                         purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)
                                                         purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)
@@ -253,19 +253,19 @@ def main():
                     console.print(ui.error_panel("사용법: /add <file1|dir1> <file2|dir2> ...", "입력 오류"))
                 continue
 
-            elif user_input.lower() == '/files':
+            elif user_input.strip().lower() == '/files':
                 console.print(ui.file_list_table(file_manager.files))
                 continue
 
-            elif user_input.lower() == '/tree':
+            elif user_input.strip().lower() == '/tree':
                 if file_manager.files:
                     console.print(ui.file_tree(file_manager.files))
                 else:
                     console.print(ui.warning_panel("추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."))
                 continue
 
-            elif user_input.lower().startswith('/analyze '):
-                parts = user_input.split()
+            elif user_input.strip().lower().startswith('/analyze '):
+                parts = user_input.strip().split()
                 if len(parts) > 1:
                     directory_path = parts[1].replace('@', '')  # @ 제거
                     # 상대 경로를 절대 경로로 변환
@@ -281,8 +281,8 @@ def main():
                     console.print(ui.error_panel("사용법: /analyze @<directory_path> 또는 /analyze <directory_path>", "입력 오류"))
                 continue
 
-            elif user_input.lower().startswith('/info '):
-                parts = user_input.split()
+            elif user_input.strip().lower().startswith('/info '):
+                parts = user_input.strip().split()
                 if len(parts) > 1:
                     user_file_path = parts[1].replace('@', '')  # @ 제거
                     
@@ -315,11 +315,13 @@ def main():
                         # 파일 분석 다시 수행
                         result = file_manager.add_single_file(found_file_path)
                         if result.get('analysis'):
-                            analysis_result = ui.file_analysis_panel([{
-                                'file_path': found_file_path,
-                                'file_type': result['file_type'],
-                                'analysis': result['analysis']
-                            }])
+                            analysis_result = ui.file_analysis_panel([
+                                {
+                                    'file_path': found_file_path,
+                                    'file_type': result['file_type'],
+                                    'analysis': result['analysis']
+                                }
+                            ])
                             if isinstance(analysis_result, list):
                                 for panel in analysis_result:
                                     console.print(panel)
@@ -333,7 +335,7 @@ def main():
                         available_files = [os.path.basename(f) for f in file_manager.files.keys()]
                         console.print(ui.error_panel(
                             f"파일을 찾을 수 없습니다: {user_file_path}\n\n"
-                            f"사용 가능한 파일들:\n" + 
+                            f"사용 가능한 파일들:\n" +
                             "\n".join(f"• {f}" for f in available_files[:10]), 
                             "파일 오류"
                         ))
@@ -341,7 +343,7 @@ def main():
                     console.print(ui.error_panel("사용법: /info @<file_path>", "입력 오류"))
                 continue
 
-            elif user_input.lower() == '/session':
+            elif user_input.strip().lower() == '/session':
                 session_id = llm_service.get_session_id()
                 if session_id:
                     console.print(ui.info_panel(f"현재 세션 ID: {session_id}", "세션 정보"))
@@ -349,17 +351,17 @@ def main():
                     console.print(ui.info_panel("활성 세션이 없습니다.", "세션 정보"))
                 continue
 
-            elif user_input.lower() == '/session-reset':
+            elif user_input.strip().lower() == '/session-reset':
                 llm_service.reset_session()
                 console.print(ui.success_panel("세션이 초기화되었습니다.", "세션 리셋"))
                 continue
 
-            elif user_input.lower() == '/clear':
+            elif user_input.strip().lower() == '/clear':
                 chat_history.clear()
                 console.print(ui.success_panel("대화 기록이 초기화되었습니다.", "초기화 완료"))
                 continue
 
-            elif user_input.lower() == '/preview':
+            elif user_input.strip().lower() == '/preview':
                 if not last_edit_response:
                     console.print(ui.warning_panel("미리볼 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
                 else:
@@ -372,7 +374,7 @@ def main():
                             console.print(panel)
                 continue
 
-            elif user_input.lower() == '/apply':
+            elif user_input.strip().lower() == '/apply':
                 if not last_edit_response:
                     console.print(ui.warning_panel("적용할 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
                 else:
@@ -406,12 +408,12 @@ def main():
                         console.print(ui.error_panel(f"파일 적용 중 오류 발생: {e}", "적용 실패"))
                 continue
 
-            elif user_input.lower() == '/history':
+            elif user_input.strip().lower() == '/history':
                 operations = file_editor.get_history(10)
                 console.print(ui.edit_history_table(operations))
                 continue
 
-            elif user_input.lower() == '/debug':
+            elif user_input.strip().lower() == '/debug':
                 if last_edit_response:
                     console.print(Panel(
                         f"[bold]현재 전략:[/bold] {edit_strategy}\n"
@@ -423,7 +425,7 @@ def main():
                     # 코더별 파싱 테스트
                     parsed = current_coder.parse_response(last_edit_response, file_manager.files)
                     console.print(Panel(
-                        f"[bold]파싱 결과 ({edit_strategy}):[/bold]\n" + 
+                        f"[bold]파싱 결과 ({edit_strategy}):[/bold]\n" +
                         (f"파일 {len(parsed)}개 감지: {list(parsed.keys())}" if parsed else "파싱된 파일 없음"),
                         title="📝 파싱 결과",
                         style="cyan"
@@ -433,8 +435,8 @@ def main():
                 continue
 
 
-            elif user_input.lower().startswith('/rollback '):
-                parts = user_input.split()
+            elif user_input.strip().lower().startswith('/rollback '):
+                parts = user_input.strip().split()
                 if len(parts) == 2:
                     operation_id = parts[1]
                     # 해당 작업 찾기
@@ -471,13 +473,13 @@ def main():
                     console.print(ui.error_panel("사용법: /rollback <ID> 또는 /rollback <ID> confirm", "명령어 오류"))
                 continue
 
-            elif user_input.lower() == '/ask':
+            elif user_input.strip().lower() == '/ask':
                 task = 'ask'
                 ui.mode_switch_message(task)
                 continue
 
-            elif user_input.lower().startswith('/edit'):
-                parts = user_input.split()
+            elif user_input.strip().lower().startswith('/edit'):
+                parts = user_input.strip().split()
                 if len(parts) == 1:
                     # 기본 edit 모드
                     task = 'edit'
@@ -493,7 +495,7 @@ def main():
                         console.print(f"[dim]✏️ 이제 {strategy_name} 방식으로 코드 수정을 요청할 수 있습니다.[/dim]\n")
                     else:
                         available = list(registry._coders.keys())
-                        console.print(ui.error_panel(f"알 수 없는 전략: {strategy_name}\\n사용 가능: {', '.join(available)}", "전략 오류"))
+                        console.print(ui.error_panel(f"알 수 없는 전략: {strategy_name}\n사용 가능: {', '.join(available)}", "전략 오류"))
                 else:
                     console.print(ui.error_panel("사용법: /edit 또는 /edit <전략명> (예: /edit udiff)", "명령어 오류"))
                 continue
@@ -562,7 +564,7 @@ def main():
                 # 모드에 따라 다른 응답 표시
                 if task == 'edit':
                     # Edit 모드: 코드 생성 응답 표시
-                    console.print(ui.edit_mode_response_panel(response_content))
+                    # console.print(ui.edit_mode_response_panel(response_content))
                     
                     # 마지막 edit 응답과 사용자 요청 저장
                     last_edit_response = response_content
@@ -579,7 +581,7 @@ def main():
                             
                             console.print()
                             console.print(ui.info_columns({
-                                "다음 단계": "'/preview' - 변경사항 다시 보기\n'/apply' - 변경사항 적용\n'/ask' - 질문 모드로 전환"
+                                "다음 단계": "'/apply' - 변경사항 적용\n'/ask' - 질문 모드로 전환"
                             }))
                         elif preview and 'error' in preview:
                             console.print(ui.error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
@@ -598,8 +600,8 @@ def main():
                             
                             if modified_files:
                                 llm_results = analyzer._perform_llm_analysis(
-                                    {f: {'file_type': 'unknown', 'basic_analysis': {}}
-                                     for f in modified_files if f in file_manager.files}
+                                    {f: {'file_type': 'unknown', 'basic_analysis': {}}}
+                                     for f in modified_files if f in file_manager.files
                                 )
                                 
                                 # 분석 결과 요약 표시
