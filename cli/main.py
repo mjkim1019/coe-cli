@@ -615,7 +615,12 @@ def main():
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
                     # Ask 모드: 입출력 분석 결과인지 확인
-                    if force_json:
+                    # JSON 응답인지 확인 (force_json이거나 ```json으로 시작하거나 ₩₩₩json으로 시작)
+                    is_json_response = (force_json or 
+                                      response_content.strip().startswith('```json') or 
+                                      response_content.strip().startswith('₩₩₩json'))
+                    
+                    if is_json_response:
                         # JSON 응답 파싱 및 표시
                         try:
                             import json
@@ -646,9 +651,11 @@ def main():
                             if isinstance(json_data, dict) and json_data.get('analysis_type'):
                                 console.print(f"[dim]DEBUG: 분석 타입: {json_data.get('analysis_type')}[/dim]")
                             
-                            # 입출력 분석인 경우 표 형태로 표시
+                            # JSON 데이터를 표 형태로 표시
+                            from rich.table import Table
+                            
+                            # 입출력 분석인 경우
                             if json_data.get('analysis_type') == 'input_output':
-                                from rich.table import Table
                                 
                                 # 입력 파라미터 표
                                 if json_data.get('inputs'):
@@ -688,6 +695,68 @@ def main():
                                 # 요약 표시
                                 if json_data.get('summary'):
                                     console.print(Panel(json_data['summary'], title="📊 분석 요약", border_style="green"))
+                            
+                            # 함수 호출관계 분석인 경우
+                            elif json_data.get('function_calls'):
+                                for main_func, call_info in json_data['function_calls'].items():
+                                    if isinstance(call_info, dict) and 'calls' in call_info:
+                                        # 함수 호출 목록 표
+                                        call_table = Table(title=f"🔗 {main_func} 함수 호출 관계", show_header=True, header_style="bold blue")
+                                        call_table.add_column("순서")
+                                        call_table.add_column("호출 함수명")
+                                        call_table.add_column("설명")
+                                        
+                                        for i, func_call in enumerate(call_info['calls'], 1):
+                                            if isinstance(func_call, dict):
+                                                call_table.add_row(
+                                                    str(i),
+                                                    func_call.get('name', 'N/A'),
+                                                    func_call.get('description', 'N/A')
+                                                )
+                                            else:
+                                                # 문자열인 경우
+                                                call_table.add_row(str(i), str(func_call), "")
+                                        
+                                        console.print(call_table)
+                                        console.print()
+                            
+                            # 기타 JSON 구조인 경우 간단한 키-값 표시
+                            else:
+                                # 일반적인 JSON 구조를 표로 표시
+                                if isinstance(json_data, dict):
+                                    for key, value in json_data.items():
+                                        if isinstance(value, (dict, list)):
+                                            console.print(f"[bold]{key}:[/bold]")
+                                            if isinstance(value, list) and len(value) > 0:
+                                                # 리스트 항목들을 표로 표시
+                                                if isinstance(value[0], dict):
+                                                    # 딕셔너리 리스트인 경우
+                                                    table = Table(title=f"📋 {key}", show_header=True, header_style="bold green")
+                                                    # 첫 번째 항목의 키들을 컬럼으로 사용
+                                                    first_item = value[0]
+                                                    for col_key in first_item.keys():
+                                                        table.add_column(str(col_key))
+                                                    
+                                                    for item in value:
+                                                        if isinstance(item, dict):
+                                                            row_values = [str(item.get(col_key, 'N/A')) for col_key in first_item.keys()]
+                                                            table.add_row(*row_values)
+                                                    
+                                                    console.print(table)
+                                                    console.print()
+                                                else:
+                                                    # 단순 리스트인 경우
+                                                    for item in value:
+                                                        console.print(f"  • {item}")
+                                                    console.print()
+                                            elif isinstance(value, dict):
+                                                # 딕셔너리인 경우
+                                                for sub_key, sub_value in value.items():
+                                                    console.print(f"  [cyan]{sub_key}:[/cyan] {sub_value}")
+                                                console.print()
+                                        else:
+                                            console.print(f"[cyan]{key}:[/cyan] {value}")
+                                    console.print()
                             
                         except json.JSONDecodeError as e:
                             # JSON 파싱 실패시 일반 응답으로 표시

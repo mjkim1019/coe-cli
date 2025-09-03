@@ -219,7 +219,7 @@ class SwingUIComponents:
 
     def loading_spinner(self, message: str = "AI가 생각중입니다..."):
         """로딩 스피너 컨텍스트 매니저"""
-        return self.console.status(f"[bold green]🧠 {message}", spinner="dots")
+        return self.console.status(f"[bold green] {message}", spinner="dots")
 
     def separator(self):
         """구분선"""
