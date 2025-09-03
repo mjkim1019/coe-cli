@@ -16,6 +16,9 @@ class PromptBuilder:
             raise ValueError(f"Invalid task name '{self.task}'. Could not load prompts.") from e
 
     def build(self, user_input: str, file_context: dict, history: list = None, file_manager=None):
+        # 입출력 관련 질문인지 검사
+        io_keywords = ['입출력', 'input', 'output', 'in/out', 'inout', 'in out', 'io', '파라미터', '인자', '리턴값', '출력값', '바인드', 'bind']
+        self.is_io_question = any(keyword in user_input.lower() for keyword in io_keywords)
         if history is None:
             history = []
 

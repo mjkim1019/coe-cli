@@ -7,7 +7,7 @@ class LLMService:
         self.chat_completions_url = f"{self.base_url}/v1/chat/completions"
         self.current_session_id = None
 
-    def chat_completion(self, messages, model="gpt-4o-mini", context="aider", session_id=None):
+    def chat_completion(self, messages, model="gpt-4o-mini", context="aider", session_id=None, force_json=False):
         headers = {
             "Content-Type": "application/json",
             # "Authorization": f"Bearer {os.getenv("OPENAI_API_KEY")}" # CoE-Backend handles its own auth
@@ -16,6 +16,10 @@ class LLMService:
             "model": model,
             "messages": messages,
         }
+        
+        # JSON 응답 강제 시 response_format 추가
+        if force_json:
+            payload["response_format"] = {"type": "json_object"}
         
         # CoE Backend API 사용가이드에 따른 context와 session_id 추가
         if context:
