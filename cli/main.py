@@ -12,6 +12,7 @@ from actions.file_editor import FileEditor
 from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
+from cli.core.mcp_integration import MCPIntegration
 from rich.console import Console
 from rich.panel import Panel
 from cli.ui.components import SwingUIComponents
@@ -31,6 +32,10 @@ def main():
     file_editor = FileEditor()
     llm_service = LLMService()
     chat_history = []
+    
+    # MCP 통합 초기화
+    mcp_integration = MCPIntegration()
+    mcp_integration.initialize(console)
     task = 'ask'  # Default task
     edit_strategy = 'whole'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
@@ -356,6 +361,19 @@ def main():
                 console.print(ui.success_panel("세션이 초기화되었습니다.", "세션 리셋"))
                 continue
 
+            elif user_input.strip().lower() == '/mcp':
+                mcp_integration.show_mcp_status(console)
+                continue
+
+            elif user_input.strip().lower().startswith('/mcp help '):
+                parts = user_input.strip().split()
+                if len(parts) >= 3:
+                    tool_name = ' '.join(parts[2:])
+                    mcp_integration.show_tool_help(tool_name, console)
+                else:
+                    console.print(ui.error_panel("사용법: /mcp help <도구명>", "명령어 오류"))
+                continue
+
             elif user_input.strip().lower() == '/clear':
                 chat_history.clear()
                 console.print(ui.success_panel("대화 기록이 초기화되었습니다.", "초기화 완료"))
@@ -517,7 +535,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -530,6 +548,7 @@ def main():
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
                         f"• 세션 관리: /session, /session-reset\n"
+                        f"• MCP 도구: /mcp, /mcp help <도구명>\n"
                         f"• 기타: /help, /exit\n\n"
                         f"'/help' 명령어로 자세한 도움말을 확인하세요.",
                         "명령어 오류"
@@ -541,8 +560,8 @@ def main():
                 ui.separator()
                 console.print(ui.user_question_panel(user_input))
 
-            # Build the prompt using PromptBuilder
-            prompt_builder = PromptBuilder(task)
+            # Build the prompt using MCP-integrated PromptBuilder
+            prompt_builder = mcp_integration.create_prompt_builder(task)
             messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
             # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
@@ -559,10 +578,19 @@ def main():
                 # DEBUG: LLM 응답 정보 표시
                 console.print(f"[dim]DEBUG: LLM 응답 길이: {len(response_content)}[/dim]")
                 console.print(f"[dim]DEBUG: LLM 응답 미리보기: {response_content[:200]}...[/dim]")
-                console.print(f"[dim]DEBUG: JSON 강제 모드: {force_json}[/dim]")
+                #console.print(f"[dim]DEBUG: JSON 강제 모드: {force_json}[/dim]")
                 
-                # 모드에 따라 다른 응답 표시
-                if task == 'edit':
+                # MCP 도구 호출 처리
+                mcp_result = mcp_integration.process_llm_response(response_content, user_input)
+                if mcp_result.get('has_tool_calls'):
+                    # MCP 도구 호출 시 LLM 응답은 디버그로만 표시
+                    console.print(f"[dim]DEBUG: LLM 원본 응답: {response_content[:100]}...[/dim]")
+                    
+                    # LLM이 자연스럽게 변환한 답변을 AI Response로 표시
+                    natural_response = mcp_result.get('natural_response', '응답을 생성할 수 없습니다.')
+                    console.print(ui.ai_response_panel(natural_response))
+                # MCP 도구 호출이 없는 경우 - 원래 응답 처리 로직 실행
+                elif task == 'edit':
                     # Edit 모드: 코드 생성 응답 표시
                     # console.print(ui.edit_mode_response_panel(response_content))
                     
@@ -617,10 +645,9 @@ def main():
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
                     # Ask 모드: 입출력 분석 결과인지 확인
-                    # JSON 응답인지 확인 (force_json이거나 ```json으로 시작하거나 ₩₩₩json으로 시작)
+                    # JSON 응답인지 확인 (force_json이거나 ```json으로 시작)
                     is_json_response = (force_json or 
-                                      response_content.strip().startswith('```json') or 
-                                      response_content.strip().startswith('₩₩₩json'))
+                                      response_content.strip().startswith('```json'))
                     
                     if is_json_response:
                         # JSON 응답 파싱 및 표시
@@ -769,11 +796,12 @@ def main():
                         # 일반 응답 표시
                         console.print(ui.ai_response_panel(response_content))
 
+
                 # Add user input and LLM response to history
                 chat_history.append({"role": "user", "content": user_input})
                 chat_history.append({"role": "assistant", "content": response_content})
             else:
-                console.print(ui.error_panel("AI가 응답을 생성하지 못했습니다."))
+                console.print(ui.err/or_panel("AI가 응답을 생성하지 못했습니다."))
             
             console.print()  # 빈 줄 추가
 
