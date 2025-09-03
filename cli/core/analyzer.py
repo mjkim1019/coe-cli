@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Swing CLI의 독립 실행 명령어들을 제공합니다.
-Usage: python coe.py [command] [options]
+코드 분석을 담당하는 CoeAnalyzer 클래스
+파일 분석, LLM 기반 심화 분석, 결과 표시 등의 기능을 제공합니다.
 """
 
 import sys
 import os
-import click
 from typing import Dict, List
 
 # 프로젝트 루트를 Python 경로에 추가
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from actions.file_manager import FileManager
 from llm.service import LLMService
@@ -18,8 +17,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.tree import Tree
-from rich.text import Text
-from rich.columns import Columns
 from rich.markdown import Markdown
 
 
@@ -203,7 +200,6 @@ JSON 형태로만 응답하세요."""
         summary = {
             'total_files': len(files_data),
             'file_types': {},
-            'complexity_overview': {},
             'common_patterns': []
         }
         
@@ -214,19 +210,6 @@ JSON 형태로만 응답하세요."""
                 summary['file_types'][file_type] = 0
             summary['file_types'][file_type] += 1
         
-        # 복잡도 분석
-        complexities = []
-        for file_path, file_info in files_data.items():
-            llm_analysis = file_info.get('llm_analysis', {})
-            if llm_analysis and 'complexity_score' in llm_analysis:
-                complexities.append(llm_analysis['complexity_score'])
-        
-        if complexities:
-            summary['complexity_overview'] = {
-                'average': sum(complexities) / len(complexities),
-                'max': max(complexities),
-                'min': min(complexities)
-            }
         
         return summary
 
@@ -308,12 +291,6 @@ JSON 형태로만 응답하세요."""
             for file_type, count in file_types.items():
                 summary_text += f"  • {file_type}: {count}개\n"
         
-        complexity = summary.get('complexity_overview', {})
-        if complexity:
-            summary_text += f"\n복잡도 분석:\n"
-            summary_text += f"  • 평균: {complexity.get('average', 0):.1f}/10\n"
-            summary_text += f"  • 최고: {complexity.get('max', 0)}/10\n"
-            summary_text += f"  • 최저: {complexity.get('min', 0)}/10\n"
         
         panel = Panel(
             summary_text.strip(),
@@ -390,7 +367,7 @@ JSON 형태로만 응답하세요."""
                 dbio_table = Table(title="🗄️ DBIO 호출 분석", show_header=True, header_style="bold magenta")
                 dbio_table.add_column("함수명")
                 dbio_table.add_column("목적")
-                dbio_table.add_column("입력 데이터", style="blue")
+                dbio_table.add_column("입력 데이터")
                 dbio_table.add_column("출력 데이터")
                 
                 for dbio_call in llm_analysis['dbio_analysis']['dbio_calls']:
@@ -410,7 +387,7 @@ JSON 형태로만 응답하세요."""
                 trx_table.add_column("TrxCode")
                 trx_table.add_column("함수명")
                 trx_table.add_column("목적")
-                trx_table.add_column("호출 시점", style="blue")
+                trx_table.add_column("호출 시점")
                 trx_table.add_column("설명")
                 
                 for trx in llm_analysis['trxcode_analysis']['trx_codes']:
@@ -576,8 +553,6 @@ JSON 형태로만 응답하세요."""
                 # LLM 분석 결과가 있는 경우
                 content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
                 
-                if 'complexity_score' in llm_analysis:
-                    content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
                 
                 if 'key_functions' in llm_analysis and llm_analysis['key_functions']:
                     if isinstance(llm_analysis['key_functions'], list):
@@ -595,16 +570,12 @@ JSON 형태로만 응답하세요."""
                 # 파일 타입별 특화된 테이블 생성
                 special_tables = self._create_file_type_tables(llm_analysis, file_path)
                 
-                if 'maintainability' in llm_analysis and llm_analysis['maintainability']:
-                    content += f"**유지보수성**: {llm_analysis['maintainability']}\n\n"
-                
-                if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
-                    content += f"**개선사항**: {llm_analysis['suggestions']}\n\n"
                 
                 panel = Panel(
                     Markdown(content.strip()),
                     title=f"📄 {filename}",
-                    border_style="green"               )
+                    border_style="green"
+                )
                 self.console.print(panel)
                 
                 # 파일 타입별 특화 테이블들을 별도로 표시
@@ -621,7 +592,8 @@ JSON 형태로만 응답하세요."""
                 panel = Panel(
                     content,
                     title=f"📄 {filename}",
-                    border_style= "yellow"            )
+                    border_style="yellow"
+                )
                 self.console.print(panel)
 
     def _display_call_graph(self, call_graph: Dict):
@@ -631,80 +603,9 @@ JSON 형태로만 응답하세요."""
             
         self.console.print("\n[bold purple]🔗 호출 관계 분석[/bold purple]")
         
-        tree = Tree("호출 관계")
-        for file_path, patterns in call_graph.items():
+        for file_path, calls in call_graph.items():
             filename = os.path.basename(file_path)
-            if patterns:
-                file_node = tree.add(f"📄 {filename}")
-                if isinstance(patterns, list):
-                    for pattern in patterns:
-                        file_node.add(f"→ {pattern}")
-                elif isinstance(patterns, str):
-                    file_node.add(f"→ {patterns}")
-        
-        self.console.print(tree)
-
-
-@click.group()
-def cli():
-    """Swing CLI 도구 - 코드 분석 및 관리"""
-    pass
-
-
-@cli.command()
-@click.argument('files', nargs=-1, type=click.Path(exists=True))
-@click.option('--no-llm', is_flag=True, help='LLM 분석 없이 기본 분석만 수행')
-@click.option('--output', '-o', help='분석 결과를 파일로 저장')
-def analyze(files, no_llm, output):
-    """파일들의 코드 구조를 분석합니다.
-    
-    Usage:
-        coe analyze file1.c file2.sql
-        coe analyze src/ --no-llm
-        coe analyze *.c -o analysis_result.json
-    """
-    if not files:
-        console = Console()
-        console.print("[red]분석할 파일을 지정해주세요.[/red]")
-        console.print("사용법: coe analyze <file1> <file2> ...")
-        return
-    
-    analyzer = CoeAnalyzer()
-    
-    # 파일 또는 디렉토리 처리
-    file_list = []
-    for file_path in files:
-        if os.path.isdir(file_path):
-            # 디렉토리인 경우 하위 파일들 수집
-            for root, dirs, filenames in os.walk(file_path):
-                for filename in filenames:
-                    if filename.endswith(('.c', '.h', '.sql', '.xml', '.py')):
-                        file_list.append(os.path.join(root, filename))
-        else:
-            file_list.append(file_path)
-    
-    # 분석 수행
-    use_llm = not no_llm
-    results = analyzer.analyze_files(file_list, use_llm=use_llm)
-    
-    # 결과 표시
-    analyzer.display_analysis_results(results)
-    
-    # 파일로 저장 (선택사항)
-    if output:
-        import json
-        with open(output, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        analyzer.console.print(f"\n[green]분석 결과가 {output}에 저장되었습니다.[/green]")
-
-
-@cli.command()
-def version():
-    """버전 정보를 표시합니다."""
-    console = Console()
-    console.print("[bold green]Swing CLI v0.2.0[/bold green]")
-    console.print("🌀 코드 구조 분석 및 대화형 CLI 도구")
-
-
-if __name__ == '__main__':
-    cli()
+            if calls:
+                self.console.print(f"📄 {filename}:")
+                for call in calls:
+                    self.console.print(f"  → {call}")

@@ -102,8 +102,6 @@ def get_sql_file_analysis_prompt(file_path: str, file_info: dict, content: str) 
    "optimization_hints": ["최적화 제안사항들"]
 }}
 
-8. suggestions: SQL 쿼리 개선 제안사항 (한국어)
-
 **SQL 파일 분석 중점사항**:
 - 모든 바인드 변수(:variable)의 용도와 nullable 여부를 정확히 분석
 - SELECT 결과 컬럼들의 출처 테이블과 nullable 여부를 명확히 파악

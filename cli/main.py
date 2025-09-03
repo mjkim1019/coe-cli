@@ -79,7 +79,7 @@ def main():
                         if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
                             console.print("\n[bold blue] LLM 기반 심화 분석을 수행합니다...[/bold blue]")
                             try:
-                                from coe import CoeAnalyzer
+                                from cli.core.analyzer import CoeAnalyzer
                                 analyzer = CoeAnalyzer()
                                 
                                 # 추가된 파일들 경로 수집
@@ -147,8 +147,6 @@ def main():
                                                 
                                                 llm_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
                                                 
-                                                if 'complexity_score' in llm_analysis:
-                                                    llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
                                                 
                                                 # Input/Output 분석을 위한 테이블 준비
                                                 io_tables = []
@@ -592,7 +590,7 @@ def main():
                     if preview and 'error' not in preview and preview:
                         console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
                         try:
-                            from coe import CoeAnalyzer
+                            from cli.core.analyzer import CoeAnalyzer
                             analyzer = CoeAnalyzer()
                             
                             # 수정될 파일들 추출
@@ -611,8 +609,6 @@ def main():
                                         if llm_analysis.get('purpose'):
                                             filename = os.path.basename(file_path)
                                             summary_text = f"수정 후 예상 결과: {llm_analysis.get('purpose', 'N/A')}"
-                                            if 'complexity_score' in llm_analysis:
-                                                summary_text += f" (복잡도: {llm_analysis['complexity_score']}/10)"
                                             
                                             console.print(f"[dim]📊 {filename}: {summary_text}[/dim]")
                         except Exception as e:
