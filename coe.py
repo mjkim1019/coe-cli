@@ -53,7 +53,7 @@ class CoeAnalyzer:
         
         # LLM 기반 분석
         if use_llm and analysis_results['files']:
-            self.console.print("[bold blue]🧠 LLM을 통한 심화 분석을 수행하고 있습니다...[/bold blue]")
+            self.console.print("[bold blue] LLM을 통한 심화 분석을 수행하고 있습니다...[/bold blue]")
             llm_analysis = self._perform_llm_analysis(analysis_results['files'])
             
             # LLM 분석 결과를 통합
@@ -169,8 +169,6 @@ class CoeAnalyzer:
 다음 항목들을 JSON 형태로 분석해주세요:
 1. purpose: 파일의 주요 목적과 역할
 2. key_functions: 주요 함수들
-3. complexity_score: 복잡도 점수 (1-10)
-4. suggestions: 개선사항
 
 JSON 형태로만 응답하세요."""
 
@@ -320,7 +318,7 @@ JSON 형태로만 응답하세요."""
         panel = Panel(
             summary_text.strip(),
             title="📊 전체 요약",
-            border_style="blue"
+            border_style="blue"       
         )
         self.console.print(panel)
 
@@ -350,49 +348,50 @@ JSON 형태로만 응답하세요."""
             if 'io_formatter_analysis' in llm_analysis:
                 io_formatter = llm_analysis['io_formatter_analysis']
                 
-                # 입력 구조체 테이블
-                if 'input_structure' in io_formatter and io_formatter['input_structure'].get('key_fields'):
-                    input_table = Table(title="📥 입력 구조체 (IO Formatter)", show_header=True, header_style="bold blue")
-                    input_table.add_column("필드명", style="cyan")
-                    input_table.add_column("타입", style="magenta") 
-                    input_table.add_column("Nullable", style="yellow")
-                    input_table.add_column("설명", style="green")
-                    
-                    for field in io_formatter['input_structure']['key_fields']:
-                        nullable_text = "✓" if field.get('nullable', False) else "✗"
-                        input_table.add_row(
-                            field.get('name', 'N/A'),
-                            field.get('type', 'N/A'),
-                            nullable_text,
-                            field.get('description', 'N/A')
-                        )
-                    tables.append(input_table)
+                # 통합된 IO Formatter 테이블
+                has_input = 'input_structure' in io_formatter and io_formatter['input_structure'].get('key_fields')
+                has_output = 'output_structure' in io_formatter and io_formatter['output_structure'].get('key_fields')
                 
-                # 출력 구조체 테이블
-                if 'output_structure' in io_formatter and io_formatter['output_structure'].get('key_fields'):
-                    output_table = Table(title="📤 출력 구조체 (IO Formatter)", show_header=True, header_style="bold green")
-                    output_table.add_column("필드명", style="cyan")
-                    output_table.add_column("타입", style="magenta")
-                    output_table.add_column("Nullable", style="yellow")
-                    output_table.add_column("설명", style="green")
+                if has_input or has_output:
+                    formatter_table = Table(title="📋 IO Formatter", show_header=True, header_style="bold blue")
+                    formatter_table.add_column("구분")
+                    formatter_table.add_column("필드명")
+                    formatter_table.add_column("타입")
+                    formatter_table.add_column("Nullable")
+                    formatter_table.add_column("설명")
                     
-                    for field in io_formatter['output_structure']['key_fields']:
-                        nullable_text = "✓" if field.get('nullable', False) else "✗"
-                        output_table.add_row(
-                            field.get('name', 'N/A'),
-                            field.get('type', 'N/A'),
-                            nullable_text,
-                            field.get('description', 'N/A')
-                        )
-                    tables.append(output_table)
+                    # 입력 필드들 추가
+                    if has_input:
+                        for field in io_formatter['input_structure']['key_fields']:
+                            nullable_text = "O" if field.get('nullable', False) else "X"
+                            formatter_table.add_row(
+                                "📥 입력",
+                                field.get('name', 'N/A'),
+                                field.get('type', 'N/A'),
+                                nullable_text,
+                                field.get('description', 'N/A')
+                            )
+                    
+                    # 출력 필드들 추가
+                    if has_output:
+                        for field in io_formatter['output_structure']['key_fields']:
+                            formatter_table.add_row(
+                                "📤 출력",
+                                field.get('name', 'N/A'),
+                                field.get('type', 'N/A'),
+                                "-",  # 출력은 nullable 표시 안함
+                                field.get('description', 'N/A')
+                            )
+                    
+                    tables.append(formatter_table)
             
             # DBIO 호출 분석 테이블
             if 'dbio_analysis' in llm_analysis and llm_analysis['dbio_analysis'].get('dbio_calls'):
                 dbio_table = Table(title="🗄️ DBIO 호출 분석", show_header=True, header_style="bold magenta")
-                dbio_table.add_column("함수명", style="cyan")
-                dbio_table.add_column("목적", style="yellow")
+                dbio_table.add_column("함수명")
+                dbio_table.add_column("목적")
                 dbio_table.add_column("입력 데이터", style="blue")
-                dbio_table.add_column("출력 데이터", style="green")
+                dbio_table.add_column("출력 데이터")
                 
                 for dbio_call in llm_analysis['dbio_analysis']['dbio_calls']:
                     dbio_table.add_row(
@@ -408,11 +407,11 @@ JSON 형태로만 응답하세요."""
             # TrxCode 분석 테이블
             if 'trxcode_analysis' in llm_analysis and llm_analysis['trxcode_analysis'].get('trx_codes'):
                 trx_table = Table(title="🔄 TrxCode 분석", show_header=True, header_style="bold purple")
-                trx_table.add_column("TrxCode", style="cyan")
-                trx_table.add_column("함수명", style="magenta")
-                trx_table.add_column("목적", style="yellow")
+                trx_table.add_column("TrxCode")
+                trx_table.add_column("함수명")
+                trx_table.add_column("목적")
                 trx_table.add_column("호출 시점", style="blue")
-                trx_table.add_column("설명", style="green")
+                trx_table.add_column("설명")
                 
                 for trx in llm_analysis['trxcode_analysis']['trx_codes']:
                     trx_table.add_row(
@@ -431,10 +430,10 @@ JSON 형태로만 응답하세요."""
                 # 입력 필드 테이블
                 if data_flow.get('input_fields'):
                     input_table = Table(title="📥 입력 필드", show_header=True, header_style="bold blue")
-                    input_table.add_column("필드명", style="cyan")
-                    input_table.add_column("타입", style="magenta")
-                    input_table.add_column("필수여부", style="yellow")
-                    input_table.add_column("설명", style="green")
+                    input_table.add_column("필드명")
+                    input_table.add_column("타입")
+                    input_table.add_column("필수여부")
+                    input_table.add_column("설명")
                     
                     for field in data_flow['input_fields']:
                         required_text = "✓" if field.get('required', False) else "✗"
@@ -449,9 +448,9 @@ JSON 형태로만 응답하세요."""
                 # 출력 필드 테이블
                 if data_flow.get('output_fields'):
                     output_table = Table(title="📤 출력 필드", show_header=True, header_style="bold green")
-                    output_table.add_column("필드명", style="cyan")
-                    output_table.add_column("타입", style="magenta")
-                    output_table.add_column("설명", style="green")
+                    output_table.add_column("필드명")
+                    output_table.add_column("타입")
+                    output_table.add_column("설명")
                     
                     for field in data_flow['output_fields']:
                         output_table.add_row(
@@ -470,14 +469,14 @@ JSON 형태로만 응답하세요."""
                 # 바인드 변수 테이블
                 if io_analysis.get('inputs'):
                     input_table = Table(title="📥 바인드 변수", show_header=True, header_style="bold blue")
-                    input_table.add_column("변수명", style="cyan")
-                    input_table.add_column("타입", style="magenta") 
-                    input_table.add_column("Nullable", style="yellow")
-                    input_table.add_column("설명", style="green")
-                    input_table.add_column("예시", style="white")
+                    input_table.add_column("변수명")
+                    input_table.add_column("타입") 
+                    input_table.add_column("Nullable")
+                    input_table.add_column("설명")
+                    input_table.add_column("예시")
                     
                     for inp in io_analysis['inputs']:
-                        nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                        nullable_text = "O" if inp.get('nullable', False) else "X"
                         input_table.add_row(
                             inp.get('name', 'N/A'),
                             inp.get('type', 'N/A'),
@@ -490,18 +489,15 @@ JSON 형태로만 응답하세요."""
                 # 출력 컬럼 테이블
                 if io_analysis.get('outputs'):
                     output_table = Table(title="📤 출력 컬럼", show_header=True, header_style="bold green")
-                    output_table.add_column("컬럼명", style="cyan")
-                    output_table.add_column("타입", style="magenta")
-                    output_table.add_column("Nullable", style="yellow")
-                    output_table.add_column("설명", style="green")
-                    output_table.add_column("출처 테이블", style="white")
+                    output_table.add_column("컬럼명")
+                    output_table.add_column("타입")
+                    output_table.add_column("설명")
+                    output_table.add_column("출처 테이블")
                     
                     for out in io_analysis['outputs']:
-                        nullable_text = "✓" if out.get('nullable', False) else "✗"
                         output_table.add_row(
                             out.get('name', 'N/A'),
                             out.get('type', 'N/A'),
-                            nullable_text,
                             out.get('description', 'N/A'),
                             out.get('table_source', 'N/A')
                         )
@@ -510,10 +506,10 @@ JSON 형태로만 응답하세요."""
             # 테이블 조인 분석 테이블
             if 'table_analysis' in llm_analysis and llm_analysis['table_analysis'].get('join_analysis'):
                 join_table = Table(title="🔗 테이블 조인 분석", show_header=True, header_style="bold cyan")
-                join_table.add_column("조인 타입", style="magenta")
-                join_table.add_column("테이블들", style="cyan")
-                join_table.add_column("조인 조건", style="yellow")
-                join_table.add_column("목적", style="green")
+                join_table.add_column("조인 타입")
+                join_table.add_column("테이블들")
+                join_table.add_column("조인 조건")
+                join_table.add_column("목적")
                 
                 for join in llm_analysis['table_analysis']['join_analysis']:
                     tables_str = " ↔ ".join(join.get('tables', []))
@@ -533,13 +529,13 @@ JSON 형태로만 응답하세요."""
                 # 입력 파라미터 테이블
                 if io_analysis.get('inputs'):
                     input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
-                    input_table.add_column("파라미터명", style="cyan")
-                    input_table.add_column("타입", style="magenta") 
-                    input_table.add_column("Nullable", style="yellow")
-                    input_table.add_column("설명", style="green")
+                    input_table.add_column("파라미터명")
+                    input_table.add_column("타입") 
+                    input_table.add_column("Nullable")
+                    input_table.add_column("설명")
                     
                     for inp in io_analysis['inputs']:
-                        nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                        nullable_text = "O" if inp.get('nullable', False) else "X"
                         input_table.add_row(
                             inp.get('name', 'N/A'),
                             inp.get('type', 'N/A'),
@@ -551,17 +547,14 @@ JSON 형태로만 응답하세요."""
                 # 출력 값 테이블
                 if io_analysis.get('outputs'):
                     output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
-                    output_table.add_column("출력값명", style="cyan")
-                    output_table.add_column("타입", style="magenta")
-                    output_table.add_column("Nullable", style="yellow")
-                    output_table.add_column("설명", style="green")
+                    output_table.add_column("출력값명")
+                    output_table.add_column("타입")
+                    output_table.add_column("설명")
                     
                     for out in io_analysis['outputs']:
-                        nullable_text = "✓" if out.get('nullable', False) else "✗"
                         output_table.add_row(
                             out.get('name', 'N/A'),
                             out.get('type', 'N/A'),
-                            nullable_text,
                             out.get('description', 'N/A')
                         )
                     tables.append(output_table)
@@ -611,8 +604,7 @@ JSON 형태로만 응답하세요."""
                 panel = Panel(
                     Markdown(content.strip()),
                     title=f"📄 {filename}",
-                    border_style="green"
-                )
+                    border_style="green"               )
                 self.console.print(panel)
                 
                 # 파일 타입별 특화 테이블들을 별도로 표시
@@ -629,8 +621,7 @@ JSON 형태로만 응답하세요."""
                 panel = Panel(
                     content,
                     title=f"📄 {filename}",
-                    border_style="yellow"
-                )
+                    border_style= "yellow"            )
                 self.console.print(panel)
 
     def _display_call_graph(self, call_graph: Dict):

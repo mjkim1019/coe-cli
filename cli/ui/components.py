@@ -586,7 +586,7 @@ class SwingUIComponents:
         
         return Panel(
             "\n".join(content),
-            title="🗂️ Directory Analysis",
+            title="Directory Analysis",
             title_align="left",
             style="cyan",
             border_style="cyan"
@@ -639,16 +639,6 @@ class SwingUIComponents:
                         for include in dbio_lib:
                             content.append(f"    • [white]{include}[/white]")
                 
-                io_structures = analysis.get('io_structures', {})
-                if io_structures:
-                    input_structs = io_structures.get('input_structs', [])
-                    output_structs = io_structures.get('output_structs', [])
-                    if input_structs or output_structs:
-                        content.append("  [bold]I/O Structures:[/bold]")
-                        for struct in input_structs:
-                            content.append(f"    • [green]Input:[/green] [white]{struct}[/white]")
-                        for struct in output_structs:
-                            content.append(f"    • [yellow]Output:[/yellow] [white]{struct}[/white]")
             
             elif file_type == 'header_file':
                 # 헤더 파일 분석 결과
@@ -683,7 +673,7 @@ class SwingUIComponents:
                 
                 defines = analysis.get('defines', [])
                 if defines:
-                    content.append(f"  [bold]Defines:[/bold] [white]{len(defines)}[/white] [dim]macros[/dim]"
+                    content.append(f"  [bold]Defines:[/bold] [white]{len(defines)}[/white] [dim]macros[/dim]")
                     # 길이 정의들 표시 (LEN_으로 시작하는 것들)
                     len_defines = [d for d in defines if isinstance(d, dict) and d['name'].startswith('LEN_')][:3]
                     for define in len_defines:

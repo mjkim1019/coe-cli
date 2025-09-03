@@ -161,13 +161,13 @@ def main():
                                                         inputs = io_analysis.get('inputs', [])
                                                         if inputs:
                                                             input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
-                                                            input_table.add_column("파라미터명", style="cyan")
-                                                            input_table.add_column("타입", style="magenta") 
-                                                            input_table.add_column("Nullable", style="yellow")
-                                                            input_table.add_column("설명", style="green")
+                                                            input_table.add_column("파라미터명")
+                                                            input_table.add_column("타입") 
+                                                            input_table.add_column("Nullable")
+                                                            input_table.add_column("설명")
                                                             
                                                             for inp in inputs:
-                                                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                                                                nullable_text = "O" if inp.get('nullable', False) else "X"
                                                                 input_table.add_row(
                                                                     inp.get('name', 'N/A'),
                                                                     inp.get('type', 'N/A'),
@@ -180,17 +180,14 @@ def main():
                                                         outputs = io_analysis.get('outputs', [])
                                                         if outputs:
                                                             output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
-                                                            output_table.add_column("출력값명", style="cyan")
-                                                            output_table.add_column("타입", style="magenta")
-                                                            output_table.add_column("Nullable", style="yellow")
-                                                            output_table.add_column("설명", style="green")
+                                                            output_table.add_column("출력값명")
+                                                            output_table.add_column("타입")
+                                                            output_table.add_column("설명")
                                                             
                                                             for out in outputs:
-                                                                nullable_text = "✓" if out.get('nullable', False) else "✗"
                                                                 output_table.add_row(
                                                                     out.get('name', 'N/A'),
                                                                     out.get('type', 'N/A'),
-                                                                    nullable_text,
                                                                     out.get('description', 'N/A')
                                                                 )
                                                             io_tables.append(output_table)
@@ -548,13 +545,21 @@ def main():
             prompt_builder = PromptBuilder(task)
             messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
+            # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
+            force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
+            
             # 로딩 메시지
             with ui.loading_spinner():
-                llm_response = llm_service.chat_completion(messages)
+                llm_response = llm_service.chat_completion(messages, force_json=force_json)
 
             if llm_response and "choices" in llm_response:
                 llm_message = llm_response["choices"][0]["message"]
                 response_content = llm_message['content']
+                
+                # DEBUG: LLM 응답 정보 표시
+                console.print(f"[dim]DEBUG: LLM 응답 길이: {len(response_content)}[/dim]")
+                console.print(f"[dim]DEBUG: LLM 응답 미리보기: {response_content[:200]}...[/dim]")
+                console.print(f"[dim]DEBUG: JSON 강제 모드: {force_json}[/dim]")
                 
                 # 모드에 따라 다른 응답 표시
                 if task == 'edit':
@@ -613,8 +618,89 @@ def main():
                         except Exception as e:
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
-                    # Ask 모드: 일반 응답 표시
-                    console.print(ui.ai_response_panel(response_content))
+                    # Ask 모드: 입출력 분석 결과인지 확인
+                    if force_json:
+                        # JSON 응답 파싱 및 표시
+                        try:
+                            import json
+                            
+                            # 마크다운 코드 블록이 있는지 확인
+                            is_markdown_wrapped = response_content.strip().startswith('```')
+                            
+                            # 마크다운 코드 블록 제거하여 JSON 파싱용 내용 준비
+                            clean_content = response_content.strip()
+                            if clean_content.startswith('```json'):
+                                clean_content = clean_content[7:]  # ```json 제거
+                            elif clean_content.startswith('```'):
+                                clean_content = clean_content[3:]  # ``` 제거
+                            if clean_content.endswith('```'):
+                                clean_content = clean_content[:-3]  # 끝의 ``` 제거
+                            clean_content = clean_content.strip()
+                            
+                            console.print(f"[dim]DEBUG: 마크다운 감싸짐: {is_markdown_wrapped}[/dim]")
+                            console.print(f"[dim]DEBUG: 정리된 내용 길이: {len(clean_content)}[/dim]")
+                            console.print(f"[dim]DEBUG: 정리된 내용 미리보기: {clean_content[:100]}...[/dim]")
+                            
+                            # JSON 파싱
+                            json_data = json.loads(clean_content)
+                            
+                            
+                            # DEBUG: 파싱된 JSON 구조 표시
+                            console.print(f"[dim]DEBUG: JSON 파싱 성공, 키들: {list(json_data.keys()) if isinstance(json_data, dict) else 'not dict'}[/dim]")
+                            if isinstance(json_data, dict) and json_data.get('analysis_type'):
+                                console.print(f"[dim]DEBUG: 분석 타입: {json_data.get('analysis_type')}[/dim]")
+                            
+                            # 입출력 분석인 경우 표 형태로 표시
+                            if json_data.get('analysis_type') == 'input_output':
+                                from rich.table import Table
+                                
+                                # 입력 파라미터 표
+                                if json_data.get('inputs'):
+                                    input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                                    input_table.add_column("파라미터명")
+                                    input_table.add_column("타입")
+                                    input_table.add_column("Nullable")
+                                    input_table.add_column("설명")
+                                    
+                                    for inp in json_data['inputs']:
+                                        nullable_text = "O" if inp.get('nullable', False) else "X"
+                                        input_table.add_row(
+                                            inp.get('name', 'N/A'),
+                                            inp.get('type', 'N/A'),
+                                            nullable_text,
+                                            inp.get('description', 'N/A')
+                                        )
+                                    console.print(input_table)
+                                    console.print()
+                                
+                                # 출력 값 표
+                                if json_data.get('outputs'):
+                                    output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                                    output_table.add_column("출력값명")
+                                    output_table.add_column("타입")
+                                    output_table.add_column("설명")
+                                    
+                                    for out in json_data['outputs']:
+                                        output_table.add_row(
+                                            out.get('name', 'N/A'),
+                                            out.get('type', 'N/A'),
+                                            out.get('description', 'N/A')
+                                        )
+                                    console.print(output_table)
+                                    console.print()
+                                
+                                # 요약 표시
+                                if json_data.get('summary'):
+                                    console.print(Panel(json_data['summary'], title="📊 분석 요약", border_style="green"))
+                            
+                        except json.JSONDecodeError as e:
+                            # JSON 파싱 실패시 일반 응답으로 표시
+                            console.print(f"[dim]DEBUG: JSON 파싱 실패: {e}[/dim]")
+                            console.print(f"[dim]DEBUG: 원본 응답을 일반 텍스트로 표시[/dim]")
+                            console.print(ui.ai_response_panel(response_content))
+                    else:
+                        # 일반 응답 표시
+                        console.print(ui.ai_response_panel(response_content))
 
                 # Add user input and LLM response to history
                 chat_history.append({"role": "user", "content": user_input})
