@@ -1,3 +1,4 @@
+
 """
 UI 컴포넌트 모듈 - Gemini CLI에서 영감을 받은 재사용 가능한 UI 요소들
 """
@@ -17,6 +18,7 @@ from rich.syntax import Syntax
 from typing import List, Dict, Optional, Tuple, Any
 import time
 import os
+from datetime import datetime
 
 class SwingUIComponents:
     def __init__(self, console: Console):
@@ -106,6 +108,9 @@ class SwingUIComponents:
 [yellow]/rollback[/yellow] <ID> - 특정 편집 작업 되돌리기
 [yellow]/debug[/yellow] - 마지막 edit 응답 디버깅 정보
 
+[bold cyan]🌐 세션 관리:[/bold cyan]
+[yellow]/session[/yellow] - 현재 세션 ID 확인
+[yellow]/session-reset[/yellow] - 세션 초기화
 
 [yellow]/help[/yellow] - 이 도움말 메시지 표시
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
@@ -138,9 +143,9 @@ class SwingUIComponents:
         """AI 응답 패널"""
         return Panel(
             Markdown(response),
-            title="🤖 AI Response",
+            title="AI Response",
             title_align="left",
-            style="bright_green",
+            style="white",
             border_style="green"
         )
 
@@ -175,9 +180,9 @@ class SwingUIComponents:
     def file_added_panel(self, message: str):
         """파일 추가 완료 패널"""
         return Panel(
-            f"[green]{message}[/green]",
-            title="📁 파일 추가 완료",
-            style="bright_green"
+            f"{message}",
+            title="파일 추가 완료",
+            style="white"
         )
 
     def mode_switch_message(self, mode: str):
@@ -204,9 +209,17 @@ class SwingUIComponents:
             style="green"
         )
 
+    def info_panel(self, message: str, title: str = "정보"):
+        """정보 패널"""
+        return Panel(
+            f"[blue]ℹ️  {message}[/blue]",
+            title=title,
+            style="blue"
+        )
+
     def loading_spinner(self, message: str = "AI가 생각중입니다..."):
         """로딩 스피너 컨텍스트 매니저"""
-        return self.console.status(f"[bold green]🧠 {message}", spinner="dots")
+        return self.console.status(f"[bold green] {message}", spinner="dots")
 
     def separator(self):
         """구분선"""
@@ -259,7 +272,7 @@ class SwingUIComponents:
                     # 기존 노드가 있는지 확인
                     found = False
                     for child in current.children:
-                        if child.label == f"📂 {part}":
+                        if str(child.label) == f"📂 {part}":
                             current = child
                             found = True
                             break
@@ -381,10 +394,9 @@ class SwingUIComponents:
         for op in operations:
             # 시간 포맷팅
             try:
-                from datetime import datetime
                 dt = datetime.fromisoformat(op.timestamp)
                 formatted_time = dt.strftime("%m/%d %H:%M")
-            except:
+            except ValueError:
                 formatted_time = op.timestamp[:16]
             
             table.add_row(
@@ -399,7 +411,7 @@ class SwingUIComponents:
     def rollback_confirmation(self, operation_id: str, description: str):
         """롤백 확인 메시지"""
         return Panel(
-            f"[yellow]⚠️ 다음 작업을 되돌리시겠습니까?[/yellow]\n\n"
+            f"[yellow]⚠️ 다음 작업을 되돌리시겠습니까?[/yellow]\n\n" 
             f"[bold]작업 ID:[/bold] {operation_id}\n"
             f"[bold]설명:[/bold] {description}\n\n"
             f"[dim]'/rollback {operation_id} confirm' 명령으로 확인하거나[/dim]\n"
@@ -574,7 +586,7 @@ class SwingUIComponents:
         
         return Panel(
             "\n".join(content),
-            title="🗂️ Directory Analysis",
+            title="Directory Analysis",
             title_align="left",
             style="cyan",
             border_style="cyan"
@@ -586,7 +598,6 @@ class SwingUIComponents:
             return None
         
         content = []
-        content.append("🔍 File Analysis Results:")
         
         for analysis_data in file_analyses:
             file_path = analysis_data['file_path']
@@ -594,121 +605,119 @@ class SwingUIComponents:
             analysis = analysis_data['analysis']
             
             file_name = os.path.basename(file_path)
-            content.append(f"\n📄 {file_name} ({file_type})")
+            content.append(f"[bold white]• {file_name}[/bold white] [dim]({file_type})[/dim]")
             
             if file_type == 'c_file':
                 # C 파일 분석 결과
                 found_functions = analysis.get('found_functions', {})
                 if found_functions:
-                    content.append("  🔧 Standard Functions:")
+                    content.append("  [bold]Standard Functions:[/bold]")
                     for func_name, func_info in found_functions.items():
                         line_num = func_info.get('line_number', 'unknown')
-                        content.append(f"    • {func_name} (line {line_num})")
+                        content.append(f"    • [white]{func_name}[/white] [dim](line {line_num})[/dim]")
                 
                 includes = analysis.get('includes', {})
                 if includes:
                     # IO Formatter 헤더들
                     io_formatter = includes.get('io_formatter', [])
                     if io_formatter:
-                        content.append("  📎 I/O Formatter:")
+                        content.append("  [bold]I/O Formatter:[/bold]")
                         for include in io_formatter:
-                            content.append(f"    • {include}")
+                            content.append(f"    • [white]{include}[/white]")
                     
                     # Static Library 헤더들 (중요!)
                     static_lib = includes.get('static_library', [])
                     if static_lib:
-                        content.append("  📚 Static Library (Business Logic):")
+                        content.append("  [bold]Static Library (Business Logic):[/bold]")
                         for include in static_lib:
-                            content.append(f"    • {include}")
+                            content.append(f"    • [white]{include}[/white]")
                     
                     # DBIO Library 헤더들
                     dbio_lib = includes.get('dbio_library', [])
                     if dbio_lib:
-                        content.append("  🗄️ DBIO Library:")
+                        content.append("  [bold]DBIO Library:[/bold]")
                         for include in dbio_lib:
-                            content.append(f"    • {include}")
+                            content.append(f"    • [white]{include}[/white]")
                 
-                io_structures = analysis.get('io_structures', {})
-                if io_structures:
-                    input_structs = io_structures.get('input_structs', [])
-                    output_structs = io_structures.get('output_structs', [])
-                    if input_structs or output_structs:
-                        content.append("  🔄 I/O Structures:")
-                        for struct in input_structs:
-                            content.append(f"    📥 Input: {struct}")
-                        for struct in output_structs:
-                            content.append(f"    📤 Output: {struct}")
             
             elif file_type == 'header_file':
                 # 헤더 파일 분석 결과
                 header_type = analysis.get('type', 'unknown')
-                content.append(f"  📋 Type: {header_type}")
+                content.append(f"  [bold]Type:[/bold] [white]{header_type}[/white]")
                 
                 structures = analysis.get('structures', [])
                 struct_details = analysis.get('struct_details', {})
                 if structures:
-                    content.append("  🏗️ Structures:")
+                    content.append("  [bold]Structures:[/bold]")
                     for struct in structures:
-                        content.append(f"    • {struct}")
+                        content.append(f"    • [white]{struct}[/white]")
                         # I/O 구조체인 경우 별도 테이블로 표시됨
                         if header_type == 'io_structure' and struct in struct_details:
                             fields = struct_details[struct]
                             if fields:
-                                content.append(f"      📋 {len(fields)} fields (detailed table below)")
+                                content.append(f"      [cyan]{len(fields)}[/cyan] [dim]fields (detailed table below)[/dim]")
                         # 일반 구조체인 경우 중요 필드만 표시
                         elif struct in struct_details:
                             fields = struct_details[struct]
                             if fields:
                                 important_fields = [f for f in fields if f['comment']][:3]  # 코멘트 있는 중요 필드 3개
                                 for field in important_fields:
-                                    field_desc = f"{field['type']} {field['name']}"
+                                    field_desc = f"[yellow]{field['type']}[/yellow] [white]{field['name']}[/white]"
                                     if field['size']:
-                                        field_desc += f"[{field['size']}]"
+                                        field_desc += f"[blue][{field['size']}][/blue]"
                                     if field['comment']:
-                                        field_desc += f" // {field['comment']}"
+                                        field_desc += f" [dim]// {field['comment']}[/dim]"
                                     content.append(f"      - {field_desc}")
                                 if len(fields) > len(important_fields):
-                                    content.append(f"      ... and {len(fields) - len(important_fields)} more fields")
+                                    content.append(f"      [dim]... and {len(fields) - len(important_fields)} more fields[/dim]")
                 
                 defines = analysis.get('defines', [])
                 if defines:
-                    content.append(f"  🔧 Defines: {len(defines)} macros")
+                    content.append(f"  [bold]Defines:[/bold] [white]{len(defines)}[/white] [dim]macros[/dim]")
                     # 길이 정의들 표시 (LEN_으로 시작하는 것들)
                     len_defines = [d for d in defines if isinstance(d, dict) and d['name'].startswith('LEN_')][:3]
                     for define in len_defines:
-                        content.append(f"    • {define['name']} = {define['value']}")
+                        content.append(f"    • [cyan]{define['name']}[/cyan] = [white]{define['value']}[/white]")
             
             elif file_type == 'sql_file':
                 # SQL 파일 분석 결과
                 oracle_features = analysis.get('oracle_features', [])
                 if oracle_features:
-                    content.append(f"  🛢️ Oracle Features: {', '.join(oracle_features)}")
+                    content.append(f"  [bold]Oracle Features:[/bold] [bright_white]{', '.join(oracle_features)}[/bright_white]")
                 
                 bind_variables = analysis.get('bind_variables', [])
                 if bind_variables:
-                    content.append(f"  🔗 Bind Variables: {', '.join(bind_variables[:5])}")
+                    content.append(f"  [bold]Bind Variables:[/bold] [bright_white]{', '.join(bind_variables[:5])}[/bright_white]")
                     if len(bind_variables) > 5:
-                        content.append(f"    ... and {len(bind_variables) - 5} more")
+                        content.append(f"    [dim]... and {len(bind_variables) - 5} more[/dim]")
             
             elif file_type == 'xml_file':
                 # XML 파일 분석 결과
                 form_id = analysis.get('form_id', '')
                 if form_id:
-                    content.append(f"  🏷️ Form ID: {form_id}")
+                    content.append(f"  [bold]Form ID:[/bold] [white]{form_id}[/white]")
                 
-                datasets = analysis.get('datasets', [])
-                if datasets:
-                    content.append(f"  📊 Datasets: {', '.join(datasets[:3])}")
-                    if len(datasets) > 3:
-                        content.append(f"    ... and {len(datasets) - 3} more")
+                form_description = analysis.get('form_description', '')
+                if form_description:
+                    content.append(f"  [bold]Form 설명:[/bold] [white]{form_description}[/white]")
                 
-                ui_components = analysis.get('ui_components', [])
-                if ui_components:
-                    content.append(f"  🎨 UI Components: {', '.join(ui_components)}")
+                datalist_ids = analysis.get('datalist_ids', [])
+                if datalist_ids:
+                    content.append(f"  [bold]DataList IDs:[/bold] [white]{', '.join(datalist_ids[:3])}[/white]")
+                    if len(datalist_ids) > 3:
+                        content.append(f"    [dim]... and {len(datalist_ids) - 3} more[/dim]")
+                
+                trx_codes = analysis.get('trx_codes', [])
+                if trx_codes:
+                    content.append(f"  [bold]TrxCodes:[/bold] [white]{len(trx_codes)}개[/white] [dim]({', '.join(trx_codes[:2])}{'...' if len(trx_codes) > 2 else ''})[/dim]")
+                
+                svc_combo_count = analysis.get('svc_combo_count', 0)
+                if svc_combo_count > 0:
+                    content.append(f"  [bold]svcCombo:[/bold] [white]{svc_combo_count}개[/white]")
                 
                 functions = analysis.get('functions', [])
                 if functions:
-                    content.append(f"  ⚙️ Functions: {len(functions)} JavaScript functions")
+                    content.append(f"  [bold]Functions:[/bold] [white]{len(functions)}[/white] [dim]JavaScript functions[/dim]")
         
         # I/O 구조체 테이블 생성
         struct_tables = []
@@ -727,9 +736,9 @@ class SwingUIComponents:
         # 메인 분석 패널
         main_panel = Panel(
             "\n".join(content),
-            title="🔬 File Analysis",
+            title=None,
             title_align="left",
-            style="green",
+            style="white",
             border_style="green"
         )
         

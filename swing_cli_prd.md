@@ -29,7 +29,8 @@ swing-cli/
 │   ├── main.py
 │   ├── completer.py
 │   └── core/
-│       ├── context_manager.py
+│       ├── context_manager.py      # 프롬프트 빌딩 + ASK 모드 백그라운드 분석
+│       ├── analyzer.py             # CoeAnalyzer 코드 구조 분석 엔진
 │       ├── ask_prompts.py
 │       ├── edit_prompts.py
 │       └── base_prompts.py
@@ -44,7 +45,6 @@ swing-cli/
 │   ├── sql_file_prompt.py     # SQL 파일 전용 분석 프롬프트
 │   └── generic_file_prompt.py # 일반 파일 기본 프롬프트
 ├── tests/
-├── coe.py                     # 독립 실행 CLI 도구
 └── .coe/
 ```
 
@@ -66,7 +66,7 @@ swing-cli/
 
 ## 🔑 주요 기능
 
-### 1. 🧠 LLM 기반 코드 구조 분석 (`coe analyze`) ✅ 구현 완료 + 파일 타입별 특화
+### 1. 🧠 LLM 기반 코드 구조 분석 ✅ 구현 완료 + 파일 타입별 특화
 
 | 항목 | 설명 | 구현 상태 |
 |------|------|----------|
@@ -76,8 +76,8 @@ swing-cli/
 | 파일 요약 | 자연어 요약 (주석 우선 추출) | ✅ 완료 |
 | 파일 카테고리화 | `controller`, `utils`, `service`, `sql`, `config` 등 | ✅ 완료 |
 | 출력 | CLI(Markdown) + Rich 표 형식 | ✅ 완료 |
-| 자동 분석 | `/add` 및 `/edit` 시 자동 LLM 분석 수행 | ✅ 완료 |
-| 독립 실행 | `python coe.py analyze <files>` 명령어 지원 | ✅ 완료 |
+| 자동 분석 | `/add` 시 기본 분석 + LLM 기반 심화 분석 수행 | ✅ 완료 |
+| 백그라운드 분석 | `/ask` 시 CoeAnalyzer를 통한 구조 분석 (화면 표시 없음) | ✅ 완료 |
 
 #### 📋 파일 타입별 특화 분석 ✅ 신규 구현
 
@@ -90,13 +90,17 @@ swing-cli/
 
 ---
 
-### 2. 💬 대화형 CLI REPL
+### 2. 💬 대화형 CLI REPL ✅ 구현 완료
 
-- 명령어 기반 대화형 인터페이스
-- 명령어 자동완성 지원
-- `/add <파일>`로 작업 컨텍스트에 파일 추가
-- `/ask`, `/edit` 명령으로 모드 전환
-- 한국어 질문 지원
+| 기능 | 설명 | 구현 상태 |
+|------|------|----------|
+| 대화형 인터페이스 | prompt_toolkit 기반 명령어 인터페이스 | ✅ 완료 |
+| 자동완성 | 파일 경로 자동완성 지원 | ✅ 완료 |
+| 파일 추가 | `/add <파일>`로 작업 컨텍스트에 파일 추가 | ✅ 완료 |
+| 모드 전환 | `/ask`, `/edit` 명령으로 모드 전환 | ✅ 완료 |
+| 한국어 지원 | 한국어 질문 및 응답 지원 | ✅ 완료 |
+| JSON 응답 처리 | ```json 형태 LLM 응답을 자동으로 테이블로 변환 | ✅ 완료 |
+| 디버그 정보 | LLM 호출 과정의 투명성을 위한 상세 디버그 출력 | ✅ 완료 |
 
 ---
 

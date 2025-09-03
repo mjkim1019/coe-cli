@@ -77,9 +77,9 @@ def main():
                         
                         # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
                         if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
-                            console.print("\n[bold blue]🧠 LLM 기반 심화 분석을 수행합니다...[/bold blue]")
+                            console.print("\n[bold blue] LLM 기반 심화 분석을 수행합니다...[/bold blue]")
                             try:
-                                from coe import CoeAnalyzer
+                                from cli.core.analyzer import CoeAnalyzer
                                 analyzer = CoeAnalyzer()
                                 
                                 # 추가된 파일들 경로 수집
@@ -133,12 +133,20 @@ def main():
                                         results_displayed = 0
                                         for file_path, llm_analysis in llm_results.items():
                                             console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
-                                            if llm_analysis.get('purpose'):
+                                            if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
                                                 filename = os.path.basename(file_path)
-                                                llm_content = f"**목적**: {llm_analysis.get('purpose', 'N/A')}\n\n"
+                                                # purpose 텍스트를 의미 단위로 줄바꿈
+                                                purpose_text = llm_analysis.get('purpose', 'N/A')
+                                                # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
+                                                import re
+                                                # 문장을 의미 단위로 분리
+                                                purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
+                                                purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
+                                                purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
+                                                purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
                                                 
-                                                if 'complexity_score' in llm_analysis:
-                                                    llm_content += f"**복잡도**: {llm_analysis['complexity_score']}/10\n\n"
+                                                llm_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
+                                                
                                                 
                                                 # Input/Output 분석을 위한 테이블 준비
                                                 io_tables = []
@@ -151,13 +159,13 @@ def main():
                                                         inputs = io_analysis.get('inputs', [])
                                                         if inputs:
                                                             input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
-                                                            input_table.add_column("파라미터명", style="cyan")
-                                                            input_table.add_column("타입", style="magenta") 
-                                                            input_table.add_column("Nullable", style="yellow")
-                                                            input_table.add_column("설명", style="green")
+                                                            input_table.add_column("파라미터명")
+                                                            input_table.add_column("타입") 
+                                                            input_table.add_column("Nullable")
+                                                            input_table.add_column("설명")
                                                             
                                                             for inp in inputs:
-                                                                nullable_text = "✓" if inp.get('nullable', False) else "✗"
+                                                                nullable_text = "O" if inp.get('nullable', False) else "X"
                                                                 input_table.add_row(
                                                                     inp.get('name', 'N/A'),
                                                                     inp.get('type', 'N/A'),
@@ -170,17 +178,14 @@ def main():
                                                         outputs = io_analysis.get('outputs', [])
                                                         if outputs:
                                                             output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
-                                                            output_table.add_column("출력값명", style="cyan")
-                                                            output_table.add_column("타입", style="magenta")
-                                                            output_table.add_column("Nullable", style="yellow")
-                                                            output_table.add_column("설명", style="green")
+                                                            output_table.add_column("출력값명")
+                                                            output_table.add_column("타입")
+                                                            output_table.add_column("설명")
                                                             
                                                             for out in outputs:
-                                                                nullable_text = "✓" if out.get('nullable', False) else "✗"
                                                                 output_table.add_row(
                                                                     out.get('name', 'N/A'),
                                                                     out.get('type', 'N/A'),
-                                                                    nullable_text,
                                                                     out.get('description', 'N/A')
                                                                 )
                                                             io_tables.append(output_table)
@@ -191,7 +196,7 @@ def main():
                                                 from rich.markdown import Markdown
                                                 llm_panel = Panel(
                                                     Markdown(llm_content.strip()),
-                                                    title=f"🧠 {filename} LLM 분석",
+                                                    title=f" {filename} LLM 분석",
                                                     border_style="magenta"
                                                 )
                                                 console.print(llm_panel)
@@ -201,6 +206,35 @@ def main():
                                                     console.print(table)
                                                     console.print()  # 빈 줄 추가
                                                 results_displayed += 1
+                                            elif llm_analysis.get('purpose') == 'LLM 분석 결과 파싱 실패':
+                                                # 파싱 실패 시에도 raw_response에서 purpose 추출 시도
+                                                raw_response = llm_analysis.get('raw_response', '')
+                                                if 'purpose' in raw_response:
+                                                    import re
+                                                    # raw_response에서 purpose 값 추출
+                                                    match = re.search(r'"purpose":\s*"([^"]+)"', raw_response)
+                                                    if match:
+                                                        purpose_text = match.group(1)
+                                                        # 의미 단위로 줄바꿈 처리
+                                                        purpose_formatted = re.sub(r'(\. )', r'\1\n', purpose_text)
+                                                        purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)
+                                                        purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)
+                                                        purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)
+                                                        
+                                                        filename = os.path.basename(file_path)
+                                                        console.print()
+                                                        from rich.markdown import Markdown
+                                                        fallback_panel = Panel(
+                                                            Markdown(f"**목적**: \n{purpose_formatted.strip()}\n\n*JSON 파싱은 실패했지만 분석 결과를 추출했습니다.*"),
+                                                            title=f" {filename} LLM 분석 (부분)",
+                                                            border_style="yellow"
+                                                        )
+                                                        console.print(fallback_panel)
+                                                        results_displayed += 1
+                                                    else:
+                                                        console.print(f"[dim]DEBUG: raw_response에서도 purpose 추출 실패[/dim]")
+                                                else:
+                                                    console.print(f"[dim]DEBUG: {file_path} - 파싱 실패, raw_response: {raw_response[:200]}...[/dim]")
                                             else:
                                                 console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
                                         
@@ -305,6 +339,19 @@ def main():
                         ))
                 else:
                     console.print(ui.error_panel("사용법: /info @<file_path>", "입력 오류"))
+                continue
+
+            elif user_input.lower() == '/session':
+                session_id = llm_service.get_session_id()
+                if session_id:
+                    console.print(ui.info_panel(f"현재 세션 ID: {session_id}", "세션 정보"))
+                else:
+                    console.print(ui.info_panel("활성 세션이 없습니다.", "세션 정보"))
+                continue
+
+            elif user_input.lower() == '/session-reset':
+                llm_service.reset_session()
+                console.print(ui.success_panel("세션이 초기화되었습니다.", "세션 리셋"))
                 continue
 
             elif user_input.lower() == '/clear':
@@ -468,7 +515,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -480,6 +527,7 @@ def main():
                         f"• 파일 관리: /add, /files, /tree, /analyze, /info, /clear\n"
                         f"• 모드 전환: /ask, /edit\n"
                         f"• 편집 기능: /preview, /apply, /history, /rollback, /debug\n"
+                        f"• 세션 관리: /session, /session-reset\n"
                         f"• 기타: /help, /exit\n\n"
                         f"'/help' 명령어로 자세한 도움말을 확인하세요.",
                         "명령어 오류"
@@ -495,13 +543,21 @@ def main():
             prompt_builder = PromptBuilder(task)
             messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
+            # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
+            force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
+            
             # 로딩 메시지
             with ui.loading_spinner():
-                llm_response = llm_service.chat_completion(messages)
+                llm_response = llm_service.chat_completion(messages, force_json=force_json)
 
             if llm_response and "choices" in llm_response:
                 llm_message = llm_response["choices"][0]["message"]
                 response_content = llm_message['content']
+                
+                # DEBUG: LLM 응답 정보 표시
+                console.print(f"[dim]DEBUG: LLM 응답 길이: {len(response_content)}[/dim]")
+                console.print(f"[dim]DEBUG: LLM 응답 미리보기: {response_content[:200]}...[/dim]")
+                console.print(f"[dim]DEBUG: JSON 강제 모드: {force_json}[/dim]")
                 
                 # 모드에 따라 다른 응답 표시
                 if task == 'edit':
@@ -534,7 +590,7 @@ def main():
                     if preview and 'error' not in preview and preview:
                         console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
                         try:
-                            from coe import CoeAnalyzer
+                            from cli.core.analyzer import CoeAnalyzer
                             analyzer = CoeAnalyzer()
                             
                             # 수정될 파일들 추출
@@ -553,15 +609,163 @@ def main():
                                         if llm_analysis.get('purpose'):
                                             filename = os.path.basename(file_path)
                                             summary_text = f"수정 후 예상 결과: {llm_analysis.get('purpose', 'N/A')}"
-                                            if 'complexity_score' in llm_analysis:
-                                                summary_text += f" (복잡도: {llm_analysis['complexity_score']}/10)"
                                             
                                             console.print(f"[dim]📊 {filename}: {summary_text}[/dim]")
                         except Exception as e:
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
-                    # Ask 모드: 일반 응답 표시
-                    console.print(ui.ai_response_panel(response_content))
+                    # Ask 모드: 입출력 분석 결과인지 확인
+                    # JSON 응답인지 확인 (force_json이거나 ```json으로 시작하거나 ₩₩₩json으로 시작)
+                    is_json_response = (force_json or 
+                                      response_content.strip().startswith('```json') or 
+                                      response_content.strip().startswith('₩₩₩json'))
+                    
+                    if is_json_response:
+                        # JSON 응답 파싱 및 표시
+                        try:
+                            import json
+                            
+                            # 마크다운 코드 블록이 있는지 확인
+                            is_markdown_wrapped = response_content.strip().startswith('```')
+                            
+                            # 마크다운 코드 블록 제거하여 JSON 파싱용 내용 준비
+                            clean_content = response_content.strip()
+                            if clean_content.startswith('```json'):
+                                clean_content = clean_content[7:]  # ```json 제거
+                            elif clean_content.startswith('```'):
+                                clean_content = clean_content[3:]  # ``` 제거
+                            if clean_content.endswith('```'):
+                                clean_content = clean_content[:-3]  # 끝의 ``` 제거
+                            clean_content = clean_content.strip()
+                            
+                            console.print(f"[dim]DEBUG: 마크다운 감싸짐: {is_markdown_wrapped}[/dim]")
+                            console.print(f"[dim]DEBUG: 정리된 내용 길이: {len(clean_content)}[/dim]")
+                            console.print(f"[dim]DEBUG: 정리된 내용 미리보기: {clean_content[:100]}...[/dim]")
+                            
+                            # JSON 파싱
+                            json_data = json.loads(clean_content)
+                            
+                            
+                            # DEBUG: 파싱된 JSON 구조 표시
+                            console.print(f"[dim]DEBUG: JSON 파싱 성공, 키들: {list(json_data.keys()) if isinstance(json_data, dict) else 'not dict'}[/dim]")
+                            if isinstance(json_data, dict) and json_data.get('analysis_type'):
+                                console.print(f"[dim]DEBUG: 분석 타입: {json_data.get('analysis_type')}[/dim]")
+                            
+                            # JSON 데이터를 표 형태로 표시
+                            from rich.table import Table
+                            
+                            # 입출력 분석인 경우
+                            if json_data.get('analysis_type') == 'input_output':
+                                
+                                # 입력 파라미터 표
+                                if json_data.get('inputs'):
+                                    input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
+                                    input_table.add_column("파라미터명")
+                                    input_table.add_column("타입")
+                                    input_table.add_column("Nullable")
+                                    input_table.add_column("설명")
+                                    
+                                    for inp in json_data['inputs']:
+                                        nullable_text = "O" if inp.get('nullable', False) else "X"
+                                        input_table.add_row(
+                                            inp.get('name', 'N/A'),
+                                            inp.get('type', 'N/A'),
+                                            nullable_text,
+                                            inp.get('description', 'N/A')
+                                        )
+                                    console.print(input_table)
+                                    console.print()
+                                
+                                # 출력 값 표
+                                if json_data.get('outputs'):
+                                    output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
+                                    output_table.add_column("출력값명")
+                                    output_table.add_column("타입")
+                                    output_table.add_column("설명")
+                                    
+                                    for out in json_data['outputs']:
+                                        output_table.add_row(
+                                            out.get('name', 'N/A'),
+                                            out.get('type', 'N/A'),
+                                            out.get('description', 'N/A')
+                                        )
+                                    console.print(output_table)
+                                    console.print()
+                                
+                                # 요약 표시
+                                if json_data.get('summary'):
+                                    console.print(Panel(json_data['summary'], title="📊 분석 요약", border_style="green"))
+                            
+                            # 함수 호출관계 분석인 경우
+                            elif json_data.get('function_calls'):
+                                for main_func, call_info in json_data['function_calls'].items():
+                                    if isinstance(call_info, dict) and 'calls' in call_info:
+                                        # 함수 호출 목록 표
+                                        call_table = Table(title=f"🔗 {main_func} 함수 호출 관계", show_header=True, header_style="bold blue")
+                                        call_table.add_column("순서")
+                                        call_table.add_column("호출 함수명")
+                                        call_table.add_column("설명")
+                                        
+                                        for i, func_call in enumerate(call_info['calls'], 1):
+                                            if isinstance(func_call, dict):
+                                                call_table.add_row(
+                                                    str(i),
+                                                    func_call.get('name', 'N/A'),
+                                                    func_call.get('description', 'N/A')
+                                                )
+                                            else:
+                                                # 문자열인 경우
+                                                call_table.add_row(str(i), str(func_call), "")
+                                        
+                                        console.print(call_table)
+                                        console.print()
+                            
+                            # 기타 JSON 구조인 경우 간단한 키-값 표시
+                            else:
+                                # 일반적인 JSON 구조를 표로 표시
+                                if isinstance(json_data, dict):
+                                    for key, value in json_data.items():
+                                        if isinstance(value, (dict, list)):
+                                            console.print(f"[bold]{key}:[/bold]")
+                                            if isinstance(value, list) and len(value) > 0:
+                                                # 리스트 항목들을 표로 표시
+                                                if isinstance(value[0], dict):
+                                                    # 딕셔너리 리스트인 경우
+                                                    table = Table(title=f"📋 {key}", show_header=True, header_style="bold green")
+                                                    # 첫 번째 항목의 키들을 컬럼으로 사용
+                                                    first_item = value[0]
+                                                    for col_key in first_item.keys():
+                                                        table.add_column(str(col_key))
+                                                    
+                                                    for item in value:
+                                                        if isinstance(item, dict):
+                                                            row_values = [str(item.get(col_key, 'N/A')) for col_key in first_item.keys()]
+                                                            table.add_row(*row_values)
+                                                    
+                                                    console.print(table)
+                                                    console.print()
+                                                else:
+                                                    # 단순 리스트인 경우
+                                                    for item in value:
+                                                        console.print(f"  • {item}")
+                                                    console.print()
+                                            elif isinstance(value, dict):
+                                                # 딕셔너리인 경우
+                                                for sub_key, sub_value in value.items():
+                                                    console.print(f"  [cyan]{sub_key}:[/cyan] {sub_value}")
+                                                console.print()
+                                        else:
+                                            console.print(f"[cyan]{key}:[/cyan] {value}")
+                                    console.print()
+                            
+                        except json.JSONDecodeError as e:
+                            # JSON 파싱 실패시 일반 응답으로 표시
+                            console.print(f"[dim]DEBUG: JSON 파싱 실패: {e}[/dim]")
+                            console.print(f"[dim]DEBUG: 원본 응답을 일반 텍스트로 표시[/dim]")
+                            console.print(ui.ai_response_panel(response_content))
+                    else:
+                        # 일반 응답 표시
+                        console.print(ui.ai_response_panel(response_content))
 
                 # Add user input and LLM response to history
                 chat_history.append({"role": "user", "content": user_input})

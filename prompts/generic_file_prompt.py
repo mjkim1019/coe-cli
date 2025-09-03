@@ -47,10 +47,7 @@ def get_generic_file_analysis_prompt(file_path: str, file_info: dict, content: s
 }}
 
 4. dependencies: 의존성 분석 (imports, includes 등)
-5. complexity_score: 복잡도 점수 (1-10)
-6. maintainability: 유지보수성 평가 (한국어)
-7. suggestions: 개선 제안사항 (한국어)
-8. call_patterns: 호출 관계 패턴
+5. call_patterns: 호출 관계 패턴
 
 **중요**: 
 - purpose는 파일 최상단의 주석(/* ... */ 또는 // ...)에서 파일 설명을 먼저 찾아보세요
