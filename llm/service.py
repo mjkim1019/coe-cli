@@ -3,7 +3,7 @@ import os
 
 class LLMService:
     def __init__(self, base_url=None):
-        self.base_url = base_url or os.getenv("COE_BACKEND_URL", "http://greatcoe.cafe24.com:8000")
+        self.base_url = base_url or os.getenv("COE_BACKEND_URL", "http://localhost:8000")
         self.chat_completions_url = f"{self.base_url}/v1/chat/completions"
         self.current_session_id = None
 

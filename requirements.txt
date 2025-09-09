@@ -3,3 +3,4 @@ click
 openai
 requests
 rich
+python-dotenv
