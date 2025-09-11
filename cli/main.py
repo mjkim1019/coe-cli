@@ -563,7 +563,7 @@ def main():
                             filename = f"{details['filename']}.c"
                             success = template_manager.create_from_template(
                                 template_name, details["service_id"], filename, 
-                                "user", details["description"], use_llm=True
+                                "user", details["description"]
                             )
                             
                             if success:

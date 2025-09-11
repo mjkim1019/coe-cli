@@ -141,7 +141,7 @@ JSON 형태로만 응답해주세요.
 {{
     "selected_template": 1,
     "template_name": "fetch_several_template.c",
-    "message": "좋습니다! fetch_several_template.c 템플릿을 선택하셨네요.\\n\\n이제 다음 정보가 필요합니다:\\n1. 서비스 ID (예: CUST0001001T01)\\n2. 파일명 (예: customer_inquiry)\\n3. 서비스 설명 (예: 고객 정보 조회 서비스)\\n\\n어떤 서비스를 만드시나요?",
+    "message": "좋습니다! fetch_several_template.c 템플릿을 선택하셨네요.\\n\\n이제 다음 정보가 필요합니다:\\n1. 서비스 ID (예: ORDSS04S1010T01)\\n2. 서비스 설명 (예: 고객 정보 조회 서비스)\\n\\n어떤 서비스를 만드시나요?",
     "next_action": "collect_details",
     "success": true
 }}
