@@ -13,6 +13,8 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
 from actions.file_editor import FileEditor
+from actions.template_manager import TemplateManager
+from actions.ai_template_assistant import AITemplateAssistant
 from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
@@ -41,7 +43,17 @@ def main():
     file_manager = FileManager()
     file_editor = FileEditor()
     llm_service = LLMService()
+    template_manager = TemplateManager(llm_service=llm_service)
+    ai_assistant = AITemplateAssistant(llm_service, template_manager)
     chat_history = []
+    
+    # AI 대화 상태 관리
+    ai_conversation_state = {
+        "active": False,
+        "stage": None,  # "template_selection", "collect_details"
+        "selected_template": None,
+        "context": {}
+    }
     
     # MCP 통합 초기화
     mcp_integration = MCPIntegration()
@@ -520,6 +532,67 @@ def main():
             elif user_input.strip() == "":
                 continue
 
+            # AI 대화 상태 처리
+            elif ai_conversation_state["active"]:
+                if ai_conversation_state["stage"] == "template_selection":
+                    # 템플릿 선택 처리
+                    templates = template_manager.list_templates()
+                    selection = ai_assistant.process_template_selection(user_input, templates)
+                    
+                    if selection and selection.get("success"):
+                        console.print(panels.create_ai_response_panel(selection["message"]))
+                        ai_conversation_state["stage"] = "collect_details"
+                        ai_conversation_state["selected_template"] = selection.get("selected_template", 1)
+                    else:
+                        console.print(panels.create_error_panel("템플릿 선택을 이해하지 못했습니다. 다시 시도해주세요.", "선택 오류"))
+                    continue
+                    
+                elif ai_conversation_state["stage"] == "collect_details":
+                    # 서비스 상세 정보 수집
+                    details = ai_assistant.extract_service_details(user_input)
+                    
+                    if details and details.get("has_all_info"):
+                        # 모든 정보가 있으면 파일 생성
+                        console.print(panels.create_ai_response_panel(details["message"]))
+                        
+                        template_number = ai_conversation_state["selected_template"]
+                        templates = template_manager.list_templates()
+                        if 1 <= template_number <= len(templates):
+                            template_name = templates[template_number - 1]["name"]
+                            
+                            filename = f"{details['filename']}.c"
+                            success = template_manager.create_from_template(
+                                template_name, details["service_id"], filename, 
+                                "user", details["description"], use_llm=True
+                            )
+                            
+                            if success:
+                                actual_path = os.path.join("SWING_AUTO_FILES", filename)
+                                console.print(panels.create_success_panel(
+                                    f"✅ 파일 생성 완료: {actual_path}\n"
+                                    f"서비스 ID: {details['service_id']}\n"
+                                    f"설명: {details['description']}",
+                                    "템플릿 파일 생성 성공"
+                                ))
+                                
+                                # 컨텍스트에 자동 추가
+                                if os.path.exists(actual_path):
+                                    file_manager.add([actual_path])
+                                    console.print(panels.create_file_added_panel(f"생성된 파일이 컨텍스트에 추가되었습니다: {actual_path}"))
+                            else:
+                                console.print(panels.create_error_panel("파일 생성에 실패했습니다.", "생성 실패"))
+                        
+                        # 대화 종료
+                        ai_conversation_state["active"] = False
+                        ai_conversation_state["stage"] = None
+                        ai_conversation_state["selected_template"] = None
+                    else:
+                        # 정보가 부족하면 추가 정보 요청
+                        missing = details.get("missing_info", [])
+                        message = f"다음 정보가 더 필요합니다: {', '.join(missing)}\n\n다시 입력해주세요."
+                        console.print(panels.create_ai_response_panel(message))
+                    continue
+
             # "수정해줘" 등 edit 요청 키워드 감지 시 edit 모드로 자동 전환
             elif any(keyword in user_input for keyword in ["수정해줘", "수정해 줘", "바꿔줘", "바꿔 줘", "고쳐줘", "고쳐 줘", "편집해줘", "편집해 줘"]):
                 if task != 'edit':
@@ -544,9 +617,32 @@ def main():
                     continue
 
             else:
-                # 일반 사용자 입력 - AI에게 전달
-                interactive_ui.display_separator()
-                console.print(panels.create_user_question_panel(user_input))
+                # AI 의도 분석 먼저 수행
+                analysis = ai_assistant.analyze_user_intent(user_input)
+                
+                if analysis.get("is_file_creation") and analysis.get("confidence", 0) > 0.7:
+                    # 파일 생성 의도가 감지되면 템플릿 대화 시작
+                    console.print(f"[bold green]✅ 파일 생성 요청이 감지되었습니다.[/bold green]")
+                    console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]\n")
+                    
+                    conversation = ai_assistant.start_template_conversation(user_input, analysis)
+                    if conversation:
+                        # 템플릿 목록 표시
+                        table = template_manager.display_templates_table()
+                        console.print(table)
+                        console.print()
+                        
+                        # AI 메시지 표시
+                        console.print(panels.create_ai_response_panel(conversation["message"]))
+                        
+                        # 대화 상태 활성화
+                        ai_conversation_state["active"] = True
+                        ai_conversation_state["stage"] = "template_selection"
+                    continue
+                else:
+                    # 일반 사용자 입력 - AI에게 전달
+                    interactive_ui.display_separator()
+                    console.print(panels.create_user_question_panel(user_input))
 
             # Build the prompt using MCP-integrated PromptBuilder
             prompt_builder = mcp_integration.create_prompt_builder(task)
