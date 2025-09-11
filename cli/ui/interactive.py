@@ -4,6 +4,7 @@ Interactive UI module - Handles user interactions and mode switching
 
 from rich.console import Console
 from typing import Dict, List, Any
+import re
 
 
 class InteractiveUI:
@@ -204,3 +205,113 @@ class InteractiveUI:
             panels.append(panel)
         
         self.console.print(Columns(panels, equal=True, expand=True))
+    
+    def detect_file_analysis_request(self, user_input: str) -> dict:
+        """파일 분석 요청 감지 및 파일 경로 추출"""
+        # 파일 경로 패턴들
+        file_patterns = [
+            r'([a-zA-Z0-9_/\\.-]+\.[a-zA-Z]{1,4})',  # 일반적인 파일 경로
+            r'tests/fixtures/([a-zA-Z0-9_.-]+)',     # tests/fixtures 경로
+            r'@([a-zA-Z0-9_/\\.-]+)',                # @로 시작하는 파일 참조
+        ]
+        
+        analysis_keywords = ['분석', '분석해', '봐줘', 'analyze', '설명해', '알려줘']
+        
+        detected_files = []
+        for pattern in file_patterns:
+            matches = re.findall(pattern, user_input)
+            detected_files.extend(matches)
+        
+        # 분석 키워드 확인
+        has_analysis_request = any(keyword in user_input.lower() for keyword in analysis_keywords)
+        
+        return {
+            'is_file_analysis_request': has_analysis_request and len(detected_files) > 0,
+            'detected_files': detected_files,
+            'user_input': user_input
+        }
+    
+    def show_file_not_loaded_guidance(self, detected_files: list, file_manager) -> bool:
+        """파일이 로드되지 않은 경우 안내 메시지 표시"""
+        missing_files = []
+        for file_path in detected_files:
+            # @ 제거
+            clean_path = file_path.lstrip('@')
+            if clean_path not in file_manager.files:
+                missing_files.append(clean_path)
+        
+        if missing_files:
+            self.console.print(f"[bold yellow]📁 파일 분석을 위해 먼저 파일을 컨텍스트에 추가해주세요![/bold yellow]")
+            self.console.print()
+            self.console.print("[dim]💡 다음 명령어들을 사용하세요:[/dim]")
+            for file_path in missing_files:
+                self.console.print(f"   [cyan]/add {file_path}[/cyan]")
+            self.console.print()
+            self.console.print("[dim]🌳 또는 디렉토리 구조를 확인하려면:[/dim]")
+            self.console.print(f"   [cyan]/tree[/cyan]")
+            self.console.print()
+            return True
+        
+        return False
+    
+    def display_file_add_results(self, result, file_manager, ui, console):
+        """파일 추가 결과 표시 (UI 로직 통합)"""
+        from rich.panel import Panel
+        
+        if isinstance(result, dict) and 'messages' in result:
+            # 기본 추가 메시지
+            message_panel = Panel(
+                "\n".join(result['messages']),
+                title="• 파일 추가됨",
+                style="green"
+            )
+            console.print(message_panel)
+            
+            # 파일 분석 결과
+            if result.get('analyses'):
+                analysis_result = ui.file_analysis_panel(result['analyses'])
+                if analysis_result:
+                    console.print()
+                    if isinstance(analysis_result, list):
+                        for panel in analysis_result:
+                            console.print(panel)
+                            console.print()
+                    else:
+                        console.print(analysis_result)
+        else:
+            # 이전 버전 호환성
+            message_panel = Panel(
+                str(result),
+                title="• 파일 추가됨", 
+                style="green"
+            )
+            console.print(message_panel)
+    
+    def display_command_results(self, command: str, result: dict, console):
+        """명령어 실행 결과 표시 (성공/실패/경고)"""
+        from rich.panel import Panel
+        
+        if result.get('success'):
+            style = "green" 
+            title = "완료"
+        elif result.get('error'):
+            style = "red"
+            title = "오류"  
+        else:
+            style = "yellow"
+            title = "경고"
+            
+        panel = Panel(
+            result.get('message', '알 수 없는 결과'),
+            title=f"• {title}",
+            style=style
+        )
+        console.print(panel)
+        
+    def display_session_info(self, session_id: str, console):
+        """세션 정보 표시"""
+        from rich.panel import Panel
+        
+        message = f"현재 세션 ID: {session_id}" if session_id else "활성 세션이 없습니다."
+        panel = Panel(message, title="• 세션 정보", style="white")
+        console.print(panel)

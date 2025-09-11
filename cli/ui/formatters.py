@@ -69,7 +69,7 @@ class ResponseFormatter:
             
             # 입력 파라미터 표
             if json_data.get('inputs'):
-                input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bright_white")
+                input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bold green")
                 input_table.add_column("파라미터명")
                 input_table.add_column("타입")
                 input_table.add_column("Nullable")
@@ -182,7 +182,7 @@ class ResponseFormatter:
         # 입력 파라미터 테이블
         inputs = io_analysis.get('inputs', [])
         if inputs:
-            input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bright_white")
+            input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bold green")
             input_table.add_column("파라미터명")
             input_table.add_column("타입")
             input_table.add_column("Nullable")
@@ -201,7 +201,7 @@ class ResponseFormatter:
         # 출력 값 테이블
         outputs = io_analysis.get('outputs', [])
         if outputs:
-            output_table = Table(title="• 출력 값", show_header=True, header_style="white")
+            output_table = Table(title="• 출력 값", show_header=True, header_style="bold green")
             output_table.add_column("출력값명")
             output_table.add_column("타입")
             output_table.add_column("설명")
