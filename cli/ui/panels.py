@@ -120,6 +120,16 @@ class UIPanels:
             border_style="bright_white"
         )
 
+    def create_simple_analysis_panel(self, file_path: str, content: str):
+        """간단한 분석 결과 패널"""
+        filename = os.path.basename(file_path)
+        
+        return Panel(
+            Markdown(content),
+            title=f"• {filename} AI 분석",
+            border_style="bright_yellow"
+        )
+
     def create_fallback_analysis_panel(self, file_path: str, purpose_text: str):
         """파싱 실패 시 fallback 분석 패널"""
         import re

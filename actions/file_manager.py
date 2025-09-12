@@ -469,6 +469,10 @@ class FileManager:
         
         return fields
     
+    def has_file(self, file_path: str) -> bool:
+        """파일이 컨텍스트에 있는지 확인"""
+        return file_path in self.files
+    
     def get_struct_info(self, file_path: str) -> Optional[Dict]:
         """특정 헤더 파일의 구조체 정보 반환"""
         if file_path not in self.files:

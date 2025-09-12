@@ -55,6 +55,53 @@ def main():
         "context": {}
     }
     
+    # 수정 의도 감지 시 자동 apply 플래그
+    modification_auto_apply = False
+    
+    def needs_intent_analysis(user_input: str) -> bool:
+        """의도 분석이 필요한지 판단 (Aider 방식)"""
+        # 명확한 명령어는 의도 분석 불필요
+        if user_input.strip().startswith('/'):
+            return False
+        
+        # 매우 명확한 질문들은 의도 분석 불필요
+        clear_question_patterns = [
+            '뭐', '무엇', '어떻게', '왜', '언제', '어디서',
+            'what', 'how', 'why', 'when', 'where',
+            '설명', '알려줘', '가르쳐', '도움말'
+        ]
+        
+        input_lower = user_input.lower()
+        if any(pattern in input_lower for pattern in clear_question_patterns):
+            return False
+        
+        # 애매한 요청이나 작업 요청은 의도 분석 필요
+        ambiguous_patterns = [
+            '해줘', '만들', '생성', '수정', '바꿔', '변경', '추가',
+            '체크', '검증', '확인', 'null', 'not null'
+        ]
+        
+        if any(pattern in input_lower for pattern in ambiguous_patterns):
+            return True
+        
+        # 기본적으로는 의도 분석 불필요
+        return False
+    
+    def show_reasoning_for_analysis(analysis: dict) -> bool:
+        """의도 분석 결과를 사용자에게 보여줄지 판단"""
+        confidence = analysis.get('confidence', 0)
+        
+        # 확신도가 낮으면 reasoning 표시 (AI가 애매해함)
+        if confidence < 0.8:
+            return True
+        
+        # 생성/수정 감지된 경우는 reasoning 표시
+        if analysis.get('is_file_creation') or analysis.get('is_file_modification'):
+            return True
+        
+        return False
+    
+    
     # MCP 통합 초기화
     mcp_integration = MCPIntegration()
     mcp_integration.initialize(console)
@@ -85,137 +132,102 @@ def main():
                     files_to_add = [p.replace('@', '') for p in parts[1:]]
                     result = file_manager.add(files_to_add)
                     
-                    # 기본 추가 메시지 표시
-                    if isinstance(result, dict) and 'messages' in result:
-                        console.print(panels.create_file_added_panel("\n".join(result['messages'])))
+                    # 파일 추가 결과 표시 (UI 모듈로 이동)
+                    interactive_ui.display_file_add_results(result, file_manager, ui, console)
                         
-                        # 파일 분석 결과가 있으면 추가로 표시
-                        if result.get('analyses'):
-                            analysis_result = ui.file_analysis_panel(result['analyses'])
-                            if analysis_result:
-                                console.print()
-                                # 결과가 리스트인 경우 (테이블 포함)
-                                if isinstance(analysis_result, list):
-                                    for panel in analysis_result:
-                                        console.print(panel)
-                                        console.print()
-                                else:
-                                    console.print(analysis_result)
-                        
-                        # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
-                        if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
-                            console.print("\n[bold blue] LLM 기반 심화 분석을 수행합니다...[/bold blue]")
-                            try:
-                                from cli.core.analyzer import CoeAnalyzer
-                                analyzer = CoeAnalyzer()
+                    # 자동으로 LLM 기반 분석 수행 (모든 파일에 대해)
+                    if True:  # result.get('analyses') 조건 제거하여 모든 파일 분석
+                        console.print("\n[bold blue] LLM 기반 심화 분석을 수행합니다...[/bold blue]")
+                        try:
+                            from cli.core.analyzer import CoeAnalyzer
+                            analyzer = CoeAnalyzer()
+                            
+                            # 추가된 파일들 경로 수집
+                            added_files = []
+                            if result.get('analyses'):
+                                # 기존 방식 (analyses가 있는 경우)
+                                for analysis in result['analyses']:
+                                    added_files.append(analysis['file_path'])
+                            else:
+                                # analyses가 없는 경우, 방금 add 명령으로 추가한 파일들 
+                                # parts[1:]에서 파일 경로들을 가져옴
+                                for file_path in files_to_add:
+                                    if os.path.exists(file_path):
+                                        added_files.append(file_path)
+                            
+                            console.print(f"[dim]DEBUG: 분석할 파일 수: {len(added_files)}[/dim]")
+                            
+                            if added_files:
+                                files_data = {}
+                                for f in added_files:
+                                    if result.get('analyses'):
+                                        # 기존 분석이 있는 경우
+                                        files_data[f] = {
+                                            'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
+                                            'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
+                                        }
+                                    else:
+                                        # 기본 분석이 없는 경우
+                                        files_data[f] = {
+                                            'file_type': 'unknown',
+                                            'basic_analysis': {}
+                                        }
                                 
-                                # 추가된 파일들 경로 수집
-                                added_files = []
-                                if result.get('analyses'):
-                                    # 기존 방식 (analyses가 있는 경우)
-                                    for analysis in result['analyses']:
-                                        added_files.append(analysis['file_path'])
-                                else:
-                                    # analyses가 없는 경우, 방금 add 명령으로 추가한 파일들 
-                                    # parts[1:]에서 파일 경로들을 가져옴
-                                    for file_path in files_to_add:
-                                        if os.path.exists(file_path):
-                                            added_files.append(file_path)
+                                console.print(f"[dim]DEBUG: files_data 구성 완료: {list(files_data.keys())}[/dim]")
+                                console.print(f"[dim]DEBUG: file_manager.files 키들: {list(file_manager.files.keys())}[/dim]")
                                 
-                                console.print(f"[dim]DEBUG: 분석할 파일 수: {len(added_files)}[/dim]")
+                                # analyzer의 file_manager를 현재 file_manager로 업데이트
+                                analyzer.file_manager = file_manager
                                 
-                                if added_files:
-                                    files_data = {}
-                                    for f in added_files:
-                                        if result.get('analyses'):
-                                            # 기존 분석이 있는 경우
-                                            files_data[f] = {
-                                                'file_type': next((a['file_type'] for a in result['analyses'] if a['file_path'] == f), 'unknown'),
-                                                'basic_analysis': next((a['analysis'] for a in result['analyses'] if a['file_path'] == f), {})
-                                            }
-                                        else:
-                                            # 기본 분석이 없는 경우
-                                            files_data[f] = {
-                                                'file_type': 'unknown',
-                                                'basic_analysis': {}
-                                            }
-                                    
-                                    console.print(f"[dim]DEBUG: files_data 구성 완료: {list(files_data.keys())}[/dim]")
-                                    console.print(f"[dim]DEBUG: file_manager.files 키들: {list(file_manager.files.keys())}[/dim]")
-                                    
-                                    # analyzer의 file_manager를 현재 file_manager로 업데이트
-                                    analyzer.file_manager = file_manager
-                                    
-                                    llm_results = analyzer._perform_llm_analysis(files_data)
-                                    
-                                    console.print(f"[dim]DEBUG: LLM 결과 수: {len(llm_results) if llm_results else 0}[/dim]")
-                                    if llm_results:
-                                        console.print(f"[dim]DEBUG: LLM 결과 키들: {list(llm_results.keys())}[/dim]")
-                                        for key, value in llm_results.items():
-                                            console.print(f"[dim]DEBUG: {key} -> {type(value)} with keys: {list(value.keys()) if isinstance(value, dict) else 'not dict'}[/dim]")
-                                    
-                                    # LLM 분석 결과 표시
-                                    if llm_results:
-                                        console.print()
-                                        results_displayed = 0
-                                        for file_path, llm_analysis in llm_results.items():
-                                            console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
-                                            if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
-                                                filename = os.path.basename(file_path)
-                                                # purpose 텍스트를 의미 단위로 줄바꿈
-                                                purpose_text = llm_analysis.get('purpose', 'N/A')
-                                                # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
-                                                import re
-                                                # 문장을 의미 단위로 분리
-                                                purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
-                                                purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
-                                                purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
-                                                purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
-                                                
-                                                llm_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
-                                                
-                                                
-                                                # Input/Output 분석을 위한 테이블 준비
-                                                io_tables = []
-                                                if 'input_output_analysis' in llm_analysis:
-                                                    io_analysis = llm_analysis['input_output_analysis']
-                                                    if io_analysis:
-                                                        from rich.table import Table
-                                                        
-                                                        # 입력 파라미터 테이블
-                                                        inputs = io_analysis.get('inputs', [])
-                                                        if inputs:
-                                                            input_table = Table(title="📥 입력 파라미터", show_header=True, header_style="bold blue")
-                                                            input_table.add_column("파라미터명")
-                                                            input_table.add_column("타입") 
-                                                            input_table.add_column("Nullable")
-                                                            input_table.add_column("설명")
-                                                            
-                                                            for inp in inputs:
-                                                                nullable_text = "O" if inp.get('nullable', False) else "X"
-                                                                input_table.add_row(
-                                                                    inp.get('name', 'N/A'),
-                                                                    inp.get('type', 'N/A'),
-                                                                    nullable_text,
-                                                                    inp.get('description', 'N/A')
-                                                                )
-                                                            io_tables.append(input_table)
-                                                        
-                                                        # 출력 값 테이블
-                                                        outputs = io_analysis.get('outputs', [])
-                                                        if outputs:
-                                                            output_table = Table(title="📤 출력 값", show_header=True, header_style="bold green")
-                                                            output_table.add_column("출력값명")
-                                                            output_table.add_column("타입")
-                                                            output_table.add_column("설명")
-                                                            
-                                                            for out in outputs:
-                                                                output_table.add_row(
-                                                                    out.get('name', 'N/A'),
-                                                                    out.get('type', 'N/A'),
-                                                                    out.get('description', 'N/A')
-                                                                )
-                                                            io_tables.append(output_table)
+                                llm_results = analyzer._perform_llm_analysis(files_data)
+                                
+                                console.print(f"[dim]DEBUG: LLM 결과 수: {len(llm_results) if llm_results else 0}[/dim]")
+                                if llm_results:
+                                    console.print(f"[dim]DEBUG: LLM 결과 키들: {list(llm_results.keys())}[/dim]")
+                                    for key, value in llm_results.items():
+                                        console.print(f"[dim]DEBUG: {key} -> {type(value)} with keys: {list(value.keys()) if isinstance(value, dict) else 'not dict'}[/dim]")
+                                
+                                # LLM 분석 결과 표시
+                                if llm_results:
+                                    console.print()
+                                    results_displayed = 0
+                                    for file_path, llm_analysis in llm_results.items():
+                                        console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
+                                        
+                                        # 파싱 성공한 경우 또는 raw_response가 있는 경우 모두 표시
+                                        should_display = False
+                                        display_content = ""
+                                        
+                                        if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
+                                            # JSON 파싱 성공한 경우
+                                            purpose_text = llm_analysis.get('purpose', 'N/A')
+                                            # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
+                                            import re
+                                            purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
+                                            purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
+                                            purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
+                                            purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
+                                            
+                                            display_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
+                                            should_display = True
+                                        
+                                        elif llm_analysis.get('raw_response'):
+                                            # JSON 파싱 실패했지만 raw_response가 있는 경우 - raw response 내용을 직접 표시
+                                            raw_response = llm_analysis.get('raw_response', '')
+                                            if len(raw_response.strip()) > 10:  # 의미있는 내용이 있는 경우만
+                                                display_content = f"**AI 분석 결과**: \n{raw_response.strip()}\n\n"
+                                                should_display = True
+                                        
+                                        if should_display:
+                                            filename = os.path.basename(file_path)
+                                            llm_content = display_content
+                                            
+                                            # Input/Output 분석 결과가 있으면 테이블로 표시
+                                            has_io_analysis = 'input_output_analysis' in llm_analysis and llm_analysis['input_output_analysis']
+                                            
+                                            if has_io_analysis:
+                                                io_analysis = llm_analysis['input_output_analysis']
+                                                io_tables = formatter.create_io_tables(io_analysis)
                                                 
                                                 if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
                                                     llm_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
@@ -223,50 +235,29 @@ def main():
                                                 llm_panel = panels.create_analysis_summary_panel(file_path, llm_analysis)
                                                 console.print(llm_panel)
                                                 
-                                                # Input/Output 테이블들을 별도로 표시
+                                                # Input/Output 테이블들을 표시
                                                 for table in io_tables:
                                                     console.print(table)
-                                                    console.print()  # 빈 줄 추가
-                                                results_displayed += 1
-                                            elif llm_analysis.get('purpose') == 'LLM 분석 결과 파싱 실패':
-                                                # 파싱 실패 시에도 raw_response에서 purpose 추출 시도
-                                                raw_response = llm_analysis.get('raw_response', '')
-                                                if 'purpose' in raw_response:
-                                                    import re
-                                                    # raw_response에서 purpose 값 추출
-                                                    match = re.search(r'"purpose":\s*"([^"]+)"', raw_response)
-                                                    if match:
-                                                        purpose_text = match.group(1)
-                                                        # 의미 단위로 줄바꿈 처리
-                                                        purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)
-                                                        purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)
-                                                        purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)
-                                                        purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)
-                                                        
-                                                        console.print()
-                                                        fallback_panel = panels.create_fallback_analysis_panel(file_path, purpose_text)
-                                                        console.print(fallback_panel)
-                                                        results_displayed += 1
-                                                    else:
-                                                        console.print(f"[dim]DEBUG: raw_response에서도 purpose 추출 실패[/dim]")
-                                                else:
-                                                    console.print(f"[dim]DEBUG: {file_path} - 파싱 실패, raw_response: {raw_response[:200]}...[/dim]")
                                             else:
-                                                console.print(f"[dim]DEBUG: {file_path} - purpose가 없음 (전체 결과: {llm_analysis})[/dim]")
-                                        
-                                        if results_displayed == 0:
-                                            console.print("[yellow]LLM 분석은 완료되었으나 표시할 결과가 없습니다.[/yellow]")
-                                    else:
-                                        console.print("[yellow]LLM 분석 결과를 받지 못했습니다.[/yellow]")
-                            except Exception as e:
-                                console.print(f"[red]LLM 분석 중 오류 발생: {e}[/red]")
-                                import traceback
-                                console.print(f"[dim]{traceback.format_exc()}[/dim]")
-                    else:
-                        # 이전 버전 호환성
-                        console.print(panels.create_file_added_panel(str(result)))
+                                                # IO 분석이 없는 경우 간단한 패널로 표시
+                                                simple_panel = panels.create_simple_analysis_panel(file_path, llm_content)
+                                                console.print(simple_panel)
+                                            
+                                            console.print()  # 빈 줄 추가
+                                            results_displayed += 1
+                                        else:
+                                            console.print(f"[dim]DEBUG: {file_path} - 표시할 콘텐츠 없음 (전체 결과: {llm_analysis})[/dim]")
+                                    
+                                    if results_displayed == 0:
+                                        console.print("[yellow]LLM 분석은 완료되었으나 표시할 결과가 없습니다.[/yellow]")
+                                else:
+                                    console.print("[yellow]LLM 분석 결과를 받지 못했습니다.[/yellow]")
+                        except Exception as e:
+                            console.print(f"[red]LLM 분석 중 오류 발생: {e}[/red]")
+                            import traceback
+                            console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 else:
-                    console.print(panels.create_error_panel("사용법: /add <file1|dir1> <file2|dir2> ...", "입력 오류"))
+                    interactive_ui.display_command_results('/add', {'error': True, 'message': '사용법: /add <file1|dir1> <file2|dir2> ...'}, console)
                 continue
 
             elif user_input.strip().lower() == '/files':
@@ -277,7 +268,7 @@ def main():
                 if file_manager.files:
                     console.print(ui.file_tree(file_manager.files))
                 else:
-                    console.print(panels.create_warning_panel("추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."))
+                    interactive_ui.display_command_results('/tree', {'message': "추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."}, console)
                 continue
 
             elif user_input.strip().lower().startswith('/analyze '):
@@ -292,9 +283,9 @@ def main():
                         analysis = file_manager.analyze_directory_structure(directory_path)
                         console.print(panels.create_directory_analysis_panel(analysis))
                     else:
-                        console.print(panels.create_error_panel(f"디렉토리를 찾을 수 없습니다: {directory_path}", "분석 오류"))
+                        interactive_ui.display_command_results('/analyze', {'error': True, 'message': f"디렉토리를 찾을 수 없습니다: {directory_path}"}, console)
                 else:
-                    console.print(panels.create_error_panel("사용법: /analyze @<directory_path> 또는 /analyze <directory_path>", "입력 오류"))
+                    interactive_ui.display_command_results('/analyze', {'error': True, 'message': '사용법: /analyze @<directory_path> 또는 /analyze <directory_path>'}, console)
                 continue
 
             elif user_input.strip().lower().startswith('/info '):
@@ -345,31 +336,24 @@ def main():
                             else:
                                 console.print(analysis_result)
                         else:
-                            console.print(panels.create_warning_panel(f"파일 분석 정보가 없습니다: {os.path.basename(found_file_path)}"))
+                            interactive_ui.display_command_results('/info', {'message': f'파일 분석 정보가 없습니다: {os.path.basename(found_file_path)}'}, console)
                     else:
                         # 사용 가능한 파일들 표시
                         available_files = [os.path.basename(f) for f in file_manager.files.keys()]
-                        console.print(panels.create_error_panel(
-                            f"파일을 찾을 수 없습니다: {user_file_path}\n\n"
-                            f"사용 가능한 파일들:\n" +
-                            "\n".join(f"• {f}" for f in available_files[:10]), 
-                            "파일 오류"
-                        ))
+                        message = f"파일을 찾을 수 없습니다: {user_file_path}\n\n사용 가능한 파일들:\n" + "\n".join(f"• {f}" for f in available_files[:10])
+                        interactive_ui.display_command_results('/info', {'error': True, 'message': message}, console)
                 else:
-                    console.print(panels.create_error_panel("사용법: /info @<file_path>", "입력 오류"))
+                    interactive_ui.display_command_results('/info', {'error': True, 'message': '사용법: /info @<file_path>'}, console)
                 continue
 
             elif user_input.strip().lower() == '/session':
                 session_id = llm_service.get_session_id()
-                if session_id:
-                    console.print(panels.create_info_panel(f"현재 세션 ID: {session_id}", "세션 정보"))
-                else:
-                    console.print(panels.create_info_panel("활성 세션이 없습니다.", "세션 정보"))
+                interactive_ui.display_session_info(session_id, console)
                 continue
 
             elif user_input.strip().lower() == '/session-reset':
                 llm_service.reset_session()
-                console.print(panels.create_success_panel("세션이 초기화되었습니다.", "세션 리셋"))
+                interactive_ui.display_command_results('/session-reset', {'success': True, 'message': '세션이 초기화되었습니다.'}, console)
                 continue
 
             elif user_input.strip().lower() == '/mcp':
@@ -382,21 +366,21 @@ def main():
                     tool_name = ' '.join(parts[2:])
                     mcp_integration.show_tool_help(tool_name, console)
                 else:
-                    console.print(panels.create_error_panel("사용법: /mcp help <도구명>", "명령어 오류"))
+                    interactive_ui.display_command_results('/mcp', {'error': True, 'message': '사용법: /mcp help <도구명>'}, console)
                 continue
 
             elif user_input.strip().lower() == '/clear':
                 chat_history.clear()
-                console.print(panels.create_success_panel("대화 기록이 초기화되었습니다.", "초기화 완료"))
+                interactive_ui.display_command_results('/clear', {'success': True, 'message': '대화 기록이 초기화되었습니다.'}, console)
                 continue
 
             elif user_input.strip().lower() == '/preview':
                 if not last_edit_response:
-                    console.print(panels.create_warning_panel("미리볼 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
+                    interactive_ui.display_command_results('/preview', {'message': '미리볼 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요.'}, console)
                 else:
                     preview = current_coder.preview_changes(last_edit_response, file_manager.files)
                     if 'error' in preview:
-                        console.print(panels.create_error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
+                        interactive_ui.display_command_results('/preview', {'error': True, 'message': f"{preview['error']['message']} (전략: {preview['error']['strategy']})"}, console)
                     else:
                         panels = ui.file_changes_preview(preview)
                         for panel in panels:
@@ -405,7 +389,7 @@ def main():
 
             elif user_input.strip().lower() == '/apply':
                 if not last_edit_response:
-                    console.print(panels.create_warning_panel("적용할 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요."))
+                    interactive_ui.display_command_results('/apply', {'message': '적용할 edit 응답이 없습니다. edit 모드에서 먼저 요청하세요.'}, console)
                 else:
                     try:
                         # 더 구체적인 설명 생성
@@ -434,7 +418,7 @@ def main():
                         
                         last_edit_response = None  # 적용 후 초기화
                     except Exception as e:
-                        console.print(panels.create_error_panel(f"파일 적용 중 오류 발생: {e}", "적용 실패"))
+                        interactive_ui.display_command_results('/apply', {'error': True, 'message': f'파일 적용 중 오류 발생: {e}'}, console)
                 continue
 
             elif user_input.strip().lower() == '/history':
@@ -460,7 +444,7 @@ def main():
                         style="cyan"
                     ))
                 else:
-                    console.print(panels.create_warning_panel("디버그할 edit 응답이 없습니다."))
+                    interactive_ui.display_command_results('/debug', {'message': '디버그할 edit 응답이 없습니다.'}, console)
                 continue
 
 
@@ -479,7 +463,7 @@ def main():
                     if target_op:
                         console.print(ui.rollback_confirmation(operation_id, target_op.description))
                     else:
-                        console.print(panels.create_error_panel(f"작업 ID '{operation_id}'를 찾을 수 없습니다.", "롤백 실패"))
+                        interactive_ui.display_command_results('/rollback', {'error': True, 'message': f"작업 ID '{operation_id}'를 찾을 수 없습니다."}, console)
                 
                 elif len(parts) == 3 and parts[1] != 'cancel':
                     operation_id, action = parts[1], parts[2]
@@ -489,17 +473,17 @@ def main():
                             if success:
                                 console.print(ui.rollback_success(operation_id))
                             else:
-                                console.print(panels.create_error_panel(f"작업 '{operation_id}' 롤백에 실패했습니다.", "롤백 실패"))
+                                interactive_ui.display_command_results('/rollback', {'error': True, 'message': f"작업 '{operation_id}' 롤백에 실패했습니다."}, console)
                         except Exception as e:
-                            console.print(panels.create_error_panel(f"롤백 중 오류 발생: {e}", "롤백 실패"))
+                            interactive_ui.display_command_results('/rollback', {'error': True, 'message': f'롤백 중 오류 발생: {e}'}, console)
                     else:
-                        console.print(panels.create_error_panel("'/rollback <ID> confirm' 형식으로 입력하세요.", "명령어 오류"))
+                        interactive_ui.display_command_results('/rollback', {'error': True, 'message': "'/rollback <ID> confirm' 형식으로 입력하세요."}, console)
                 
                 elif len(parts) == 2 and parts[1] == 'cancel':
-                    console.print(panels.create_success_panel("롤백이 취소되었습니다.", "취소됨"))
+                    interactive_ui.display_command_results('/rollback', {'success': True, 'message': '롤백이 취소되었습니다.'}, console)
                 
                 else:
-                    console.print(panels.create_error_panel("사용법: /rollback <ID> 또는 /rollback <ID> confirm", "명령어 오류"))
+                    interactive_ui.display_command_results('/rollback', {'error': True, 'message': '사용법: /rollback <ID> 또는 /rollback <ID> confirm'}, console)
                 continue
 
             elif user_input.strip().lower() == '/ask':
@@ -524,9 +508,9 @@ def main():
                         console.print(f"[dim]✏️ 이제 {strategy_name} 방식으로 코드 수정을 요청할 수 있습니다.[/dim]\n")
                     else:
                         available = list(registry._coders.keys())
-                        console.print(panels.create_error_panel(f"알 수 없는 전략: {strategy_name}\n사용 가능: {', '.join(available)}", "전략 오류"))
+                        interactive_ui.display_command_results('/edit', {'error': True, 'message': f"알 수 없는 전략: {strategy_name}\n사용 가능: {', '.join(available)}"}, console)
                 else:
-                    console.print(panels.create_error_panel("사용법: /edit 또는 /edit <전략명> (예: /edit udiff)", "명령어 오류"))
+                    interactive_ui.display_command_results('/edit', {'error': True, 'message': '사용법: /edit 또는 /edit <전략명> (예: /edit udiff)'}, console)
                 continue
 
             elif user_input.strip() == "":
@@ -544,7 +528,7 @@ def main():
                         ai_conversation_state["stage"] = "collect_details"
                         ai_conversation_state["selected_template"] = selection.get("selected_template", 1)
                     else:
-                        console.print(panels.create_error_panel("템플릿 선택을 이해하지 못했습니다. 다시 시도해주세요.", "선택 오류"))
+                        interactive_ui.display_command_results('template', {'error': True, 'message': '템플릿 선택을 이해하지 못했습니다. 다시 시도해주세요.'}, console)
                     continue
                     
                 elif ai_conversation_state["stage"] == "collect_details":
@@ -580,7 +564,7 @@ def main():
                                     file_manager.add([actual_path])
                                     console.print(panels.create_file_added_panel(f"생성된 파일이 컨텍스트에 추가되었습니다: {actual_path}"))
                             else:
-                                console.print(panels.create_error_panel("파일 생성에 실패했습니다.", "생성 실패"))
+                                interactive_ui.display_command_results('template', {'error': True, 'message': '파일 생성에 실패했습니다.'}, console)
                         
                         # 대화 종료
                         ai_conversation_state["active"] = False
@@ -602,7 +586,7 @@ def main():
                 
                 # edit 모드에서 처리하도록 계속 진행
                 interactive_ui.display_separator()
-                console.print(panels.create_user_question_panel(user_input))
+                # 사용자 입력 패널 제거 (사용자 요청)
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
@@ -617,32 +601,57 @@ def main():
                     continue
 
             else:
-                # AI 의도 분석 먼저 수행
-                analysis = ai_assistant.analyze_user_intent(user_input)
-                
-                if analysis.get("is_file_creation") and analysis.get("confidence", 0) > 0.7:
-                    # 파일 생성 의도가 감지되면 템플릿 대화 시작
-                    console.print(f"[bold green]✅ 파일 생성 요청이 감지되었습니다.[/bold green]")
-                    console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]\n")
+                # 필요한 경우에만 의도 분석 수행
+                if needs_intent_analysis(user_input):
+                    analysis = ai_assistant.analyze_user_intent(user_input)
                     
-                    conversation = ai_assistant.start_template_conversation(user_input, analysis)
-                    if conversation:
-                        # 템플릿 목록 표시
-                        table = template_manager.display_templates_table()
-                        console.print(table)
-                        console.print()
+                    if analysis.get("is_file_creation") and analysis.get("confidence", 0) > 0.7:
+                        # 파일 생성 의도가 감지되면 템플릿 대화 시작
+                        console.print(f"[bold green]✅ 파일 생성 요청이 감지되었습니다.[/bold green]")
                         
-                        # AI 메시지 표시
-                        console.print(panels.create_ai_response_panel(conversation["message"]))
+                        # 선택적 reasoning 표시
+                        if show_reasoning_for_analysis(analysis):
+                            console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]\n")
                         
-                        # 대화 상태 활성화
-                        ai_conversation_state["active"] = True
-                        ai_conversation_state["stage"] = "template_selection"
-                    continue
-                else:
-                    # 일반 사용자 입력 - AI에게 전달
-                    interactive_ui.display_separator()
-                    console.print(panels.create_user_question_panel(user_input))
+                        conversation = ai_assistant.start_template_conversation(user_input, analysis)
+                        if conversation:
+                            # 템플릿 목록 표시
+                            table = template_manager.display_templates_table()
+                            console.print(table)
+                            console.print()
+                            
+                            # AI 메시지 표시
+                            console.print(panels.create_ai_response_panel(conversation["message"]))
+                            
+                            # 대화 상태 활성화
+                            ai_conversation_state["active"] = True
+                            ai_conversation_state["stage"] = "template_selection"
+                        continue
+                    
+                    elif analysis.get("is_file_modification") and analysis.get("confidence", 0) > 0.7:
+                        # AI가 파일 수정 의도를 감지하면 자동으로 edit 모드로 전환
+                        console.print(f"[bold yellow]🔧 AI가 파일 수정 요청을 감지했습니다.[/bold yellow]")
+                        
+                        # 선택적 reasoning 표시
+                        if show_reasoning_for_analysis(analysis):
+                            console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]")
+                        
+                        console.print(f"[dim]💡 수정사항을 적용하기 위해 Edit 모드로 전환합니다.[/dim]")
+                        
+                        task = 'edit'
+                        modification_auto_apply = True  # 자동 apply 플래그 설정
+                        interactive_ui.display_command_results('mode', {'success': True, 'message': 'Edit 모드로 전환되었습니다.'}, console)
+                        
+                        # edit 모드에서 바로 처리하도록 continue 하지 않고 아래로 진행
+                
+                # 파일 분석 요청 감지 및 안내
+                file_request = interactive_ui.detect_file_analysis_request(user_input)
+                if file_request['is_file_analysis_request']:
+                    if interactive_ui.show_file_not_loaded_guidance(file_request['detected_files'], file_manager):
+                        continue  # 안내 메시지를 보여주고 다음 입력 대기
+                
+                # 일반 사용자 입력 - AI에게 전달 (의도 분석 없이 바로 처리)
+                interactive_ui.display_separator()
 
             # Build the prompt using MCP-integrated PromptBuilder
             prompt_builder = mcp_integration.create_prompt_builder(task)
@@ -692,11 +701,34 @@ def main():
                                 console.print(panel)
                             
                             console.print()
-                            interactive_ui.display_edit_next_steps()
+                            
+                            # 수정 의도 감지로 edit 모드가 된 경우 자동으로 apply 여부 묻기
+                            if modification_auto_apply:
+                                console.print(f"[bold cyan]💡 수정사항을 실제 파일에 적용하시겠습니까?[/bold cyan]")
+                                apply_confirm = session.prompt("적용하시겠습니까? (y/n): ").strip().lower()
+                                if apply_confirm in ['y', 'yes', '네', 'ㅇ']:
+                                    # /apply 명령 실행
+                                    apply_result = current_coder.apply_changes(last_edit_response, file_manager.files)
+                                    if apply_result.get('success'):
+                                        message = f"변경사항이 적용되었습니다.\n\n적용된 파일:\n" + '\n'.join(f"• {file}" for file in apply_result.get('applied_files', []))
+                                        interactive_ui.display_command_results('auto-apply', {'success': True, 'message': message}, console)
+                                        
+                                        # 적용된 파일들을 파일 매니저에 다시 로드
+                                        for file_path in apply_result.get('applied_files', []):
+                                            if file_path in file_manager.files:
+                                                file_manager.reload_file(file_path)
+                                    else:
+                                        interactive_ui.display_command_results('auto-apply', {'error': True, 'message': apply_result.get('error', '알 수 없는 오류')}, console)
+                                else:
+                                    console.print(f"[dim]변경사항이 적용되지 않았습니다. 나중에 /apply 명령으로 적용할 수 있습니다.[/dim]")
+                                
+                                modification_auto_apply = False  # 플래그 리셋
+                            else:
+                                interactive_ui.display_edit_next_steps()
                         elif preview and 'error' in preview:
-                            console.print(panels.create_error_panel(preview['error']['message'], f"미리보기 오류 ({preview['error']['strategy']})"))
+                            interactive_ui.display_command_results('edit-preview', {'error': True, 'message': f"{preview['error']['message']} (전략: {preview['error']['strategy']})"}, console)
                     except Exception as e:
-                        console.print(panels.create_warning_panel(f"미리보기 생성 중 오류: {e}"))
+                        interactive_ui.display_command_results('edit-preview', {'message': f'미리보기 생성 중 오류: {e}'}, console)
                     
                     # Edit 후 자동으로 파일 분석 수행
                     if preview and 'error' not in preview and preview:
@@ -726,13 +758,27 @@ def main():
                         except Exception as e:
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
-                    # Ask 모드: 입출력 분석 결과인지 확인
-                    # Ask 모드: 입출력 분석 결과인지 확인
-                    # JSON 응답인지 확인 (force_json이거나 ```json으로 시작)
-                    formatted = formatter.format_json_response(response_content, force_json)
-                    
-                    if formatted is None:
-                        # 일반 응답 표시
+                    # Ask 모드: 응답 처리
+                    # 의도 분석 JSON 응답인지 확인 (is_file_creation, is_file_modification 키 포함)
+                    import json
+                    try:
+                        # JSON 파싱 시도
+                        json_content = response_content.strip()
+                        if json_content.startswith('```json'):
+                            json_content = json_content.replace('```json', '').replace('```', '').strip()
+                        
+                        parsed = json.loads(json_content)
+                        # 의도 분석 응답인지 확인
+                        if isinstance(parsed, dict) and ('is_file_creation' in parsed or 'is_file_modification' in parsed):
+                            # 의도 분석 응답은 표시하지 않고 일반 질문으로 다시 처리
+                            console.print(panels.create_warning_panel("일반 질문에 대한 응답을 생성하지 못했습니다. 다시 시도해주세요."))
+                        else:
+                            # 정상적인 JSON 응답 (입출력 분석 등)
+                            formatted = formatter.format_json_response(response_content, force_json)
+                            if formatted is None:
+                                console.print(panels.create_ai_response_panel(response_content))
+                    except (json.JSONDecodeError, TypeError):
+                        # JSON이 아닌 일반 응답
                         console.print(panels.create_ai_response_panel(response_content))
 
 

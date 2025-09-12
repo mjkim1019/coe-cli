@@ -16,34 +16,41 @@ class AITemplateAssistant:
         self.console = Console()
     
     def analyze_user_intent(self, user_input: str) -> Dict:
-        """사용자 의도를 분석하여 파일 생성 요청인지 판단"""
+        """사용자 의도를 분석하여 파일 생성/수정 요청인지 판단"""
         if not self.llm_service:
-            return {"is_file_creation": False}
+            return {"is_file_creation": False, "is_file_modification": False}
         
         prompt = f"""
-사용자의 입력을 분석해서 파일 생성 요청인지 판단해주세요.
+사용자의 입력을 분석해서 어떤 의도인지 판단해주세요.
 
 **사용자 입력:** "{user_input}"
 
 다음 중 어떤 의도인지 분석해주세요:
-1. 새로운 파일/서비스를 만들고 싶어함
-2. 기존 파일을 수정하고 싶어함  
+1. 새로운 파일/서비스를 만들고 싶어함 (생성)
+2. 기존 파일을 수정하고 싶어함 (수정)
 3. 질문이나 정보 조회
 4. 기타
 
-**분석 기준:**
-- "생성", "만들어", "새로", "신규", "파일", "서비스" 등의 키워드
+**생성 관련 패턴:**
+- "생성", "만들어", "새로", "신규", "파일", "서비스", "추가" 등
 - 템플릿 사용 의도
-- 구체적인 서비스명이나 기능 언급
+
+**수정 관련 패턴:**
+- "수정", "바꿔", "변경", "업데이트", "고쳐", "편집", "fix", "해줘"
+- 기존 함수/파일명을 언급하면서 변경 요청
+- "~에서 ~하게 해줘", "~을 ~로 바꿔", "~에 ~추가해"
+- null 체크, 검증 로직 추가 등 기능 개선 요청
+- 기존 코드의 특정 부분을 지정해서 변경 요청
 
 **출력 형식 (JSON):**
 {{
     "is_file_creation": true/false,
+    "is_file_modification": true/false,
     "confidence": 0.95,
-    "detected_keywords": ["생성", "파일"],
+    "detected_keywords": ["생성", "파일"] 또는 ["수정", "해줘"],
     "suggested_service_name": "고객 정보 조회",
     "suggested_filename": "customer_info_inquiry",
-    "reasoning": "사용자가 새로운 파일 생성을 요청함"
+    "reasoning": "사용자가 새로운 파일 생성을 요청함" 또는 "사용자가 b000_input_validation 함수에 null 체크 로직 추가를 요청함"
 }}
 
 JSON 형태로만 응답해주세요.
@@ -64,7 +71,7 @@ JSON 형태로만 응답해주세요.
         except Exception as e:
             self.console.print(f"[dim]의도 분석 실패: {e}[/dim]")
             
-        return {"is_file_creation": False}
+        return {"is_file_creation": False, "is_file_modification": False}
     
     def start_template_conversation(self, user_input: str, analysis: Dict) -> Optional[Dict]:
         """템플릿 사용에 대한 대화 시작"""
