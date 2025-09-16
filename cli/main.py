@@ -14,7 +14,8 @@ from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
 from actions.file_editor import FileEditor
 from actions.template_manager import TemplateManager
-from actions.ai_template_assistant import AITemplateAssistant
+# AI 템플릿 어시스턴트 제거됨 (단순한 /new 명령어로 대체)
+#from actions.ai_template_assistant import AITemplateAssistant
 from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
@@ -44,62 +45,15 @@ def main():
     file_editor = FileEditor()
     llm_service = LLMService()
     template_manager = TemplateManager(llm_service=llm_service)
-    ai_assistant = AITemplateAssistant(llm_service, template_manager)
+    # AI 어시스턴트 제거됨
     chat_history = []
     
-    # AI 대화 상태 관리
-    ai_conversation_state = {
-        "active": False,
-        "stage": None,  # "template_selection", "collect_details"
-        "selected_template": None,
-        "context": {}
-    }
+    # AI 대화 상태 관리 - 제거됨 (단순한 /new 명령어로 대체)
     
     # 수정 의도 감지 시 자동 apply 플래그
     modification_auto_apply = False
     
-    def needs_intent_analysis(user_input: str) -> bool:
-        """의도 분석이 필요한지 판단 (Aider 방식)"""
-        # 명확한 명령어는 의도 분석 불필요
-        if user_input.strip().startswith('/'):
-            return False
-        
-        # 매우 명확한 질문들은 의도 분석 불필요
-        clear_question_patterns = [
-            '뭐', '무엇', '어떻게', '왜', '언제', '어디서',
-            'what', 'how', 'why', 'when', 'where',
-            '설명', '알려줘', '가르쳐', '도움말'
-        ]
-        
-        input_lower = user_input.lower()
-        if any(pattern in input_lower for pattern in clear_question_patterns):
-            return False
-        
-        # 애매한 요청이나 작업 요청은 의도 분석 필요
-        ambiguous_patterns = [
-            '해줘', '만들', '생성', '수정', '바꿔', '변경', '추가',
-            '체크', '검증', '확인', 'null', 'not null'
-        ]
-        
-        if any(pattern in input_lower for pattern in ambiguous_patterns):
-            return True
-        
-        # 기본적으로는 의도 분석 불필요
-        return False
-    
-    def show_reasoning_for_analysis(analysis: dict) -> bool:
-        """의도 분석 결과를 사용자에게 보여줄지 판단"""
-        confidence = analysis.get('confidence', 0)
-        
-        # 확신도가 낮으면 reasoning 표시 (AI가 애매해함)
-        if confidence < 0.8:
-            return True
-        
-        # 생성/수정 감지된 경우는 reasoning 표시
-        if analysis.get('is_file_creation') or analysis.get('is_file_modification'):
-            return True
-        
-        return False
+    # 의도 분석 함수들 제거됨 (단순화)
     
     
     # MCP 통합 초기화
@@ -457,6 +411,64 @@ def main():
                 interactive_ui.display_mode_switch_message(task)
                 continue
 
+            elif user_input.strip().lower() == '/new':
+                # 간단한 파일 생성 명령어
+                templates = template_manager.list_templates()
+                if not templates:
+                    console.print(panels.create_error_panel("templates/ 디렉토리에 템플릿 파일이 없습니다."))
+                    continue
+
+                # 템플릿 목록 표시
+                table = template_manager.display_templates_table()
+                console.print(table)
+                console.print()
+
+                try:
+                    # 템플릿 선택
+                    template_choice = session.prompt("템플릿 번호를 선택하세요: ").strip()
+                    if not template_choice.isdigit():
+                        console.print(panels.create_error_panel("올바른 숫자를 입력하세요."))
+                        continue
+
+                    template_num = int(template_choice)
+                    if not (1 <= template_num <= len(templates)):
+                        console.print(panels.create_error_panel(f"1-{len(templates)} 범위의 숫자를 입력하세요."))
+                        continue
+
+                    # 서비스 정보 입력
+                    service_id = session.prompt("서비스 ID (예: EDUSS0100101T01): ").strip()
+                    if not service_id:
+                        console.print(panels.create_error_panel("서비스 ID는 필수입니다."))
+                        continue
+
+                    filename = session.prompt("파일명 (예: eduss0100101t01): ").strip()
+                    if not filename:
+                        console.print(panels.create_error_panel("파일명은 필수입니다."))
+                        continue
+
+                    description = session.prompt("설명 (선택사항): ").strip()
+
+                    # 파일 생성
+                    template_name = templates[template_num - 1]["name"]
+                    success = template_manager.create_from_template(
+                        template_name, service_id, f"{filename}.c", "user", description
+                    )
+
+                    if success:
+                        actual_path = os.path.join("SWING_AUTO_FILES", f"{filename}.c")
+                        console.print(panels.create_success_panel(
+                            f"✅ 파일 생성 완료: {actual_path}\n"
+                            f"서비스 ID: {service_id}\n"
+                            f"설명: {description or '없음'}",
+                            "파일 생성 완료"
+                        ))
+                    else:
+                        console.print(panels.create_error_panel("파일 생성에 실패했습니다."))
+
+                except (KeyboardInterrupt, EOFError):
+                    console.print(panels.create_warning_panel("파일 생성이 취소되었습니다."))
+                continue
+
             elif user_input.strip().lower().startswith('/edit'):
                 parts = user_input.strip().split()
                 if len(parts) == 1:
@@ -482,66 +494,7 @@ def main():
             elif user_input.strip() == "":
                 continue
 
-            # AI 대화 상태 처리
-            elif ai_conversation_state["active"]:
-                if ai_conversation_state["stage"] == "template_selection":
-                    # 템플릿 선택 처리
-                    templates = template_manager.list_templates()
-                    selection = ai_assistant.process_template_selection(user_input, templates)
-                    
-                    if selection and selection.get("success"):
-                        console.print(panels.create_ai_response_panel(selection["message"]))
-                        ai_conversation_state["stage"] = "collect_details"
-                        ai_conversation_state["selected_template"] = selection.get("selected_template", 1)
-                    else:
-                        interactive_ui.display_command_results('template', {'error': True, 'message': '템플릿 선택을 이해하지 못했습니다. 다시 시도해주세요.'}, console)
-                    continue
-                    
-                elif ai_conversation_state["stage"] == "collect_details":
-                    # 서비스 상세 정보 수집
-                    details = ai_assistant.extract_service_details(user_input)
-                    
-                    if details and details.get("has_all_info"):
-                        # 모든 정보가 있으면 파일 생성
-                        console.print(panels.create_ai_response_panel(details["message"]))
-                        
-                        template_number = ai_conversation_state["selected_template"]
-                        templates = template_manager.list_templates()
-                        if 1 <= template_number <= len(templates):
-                            template_name = templates[template_number - 1]["name"]
-                            
-                            filename = f"{details['filename']}.c"
-                            success = template_manager.create_from_template(
-                                template_name, details["service_id"], filename, 
-                                "user", details["description"]
-                            )
-                            
-                            if success:
-                                actual_path = os.path.join("SWING_AUTO_FILES", filename)
-                                console.print(panels.create_success_panel(
-                                    f"✅ 파일 생성 완료: {actual_path}\n"
-                                    f"서비스 ID: {details['service_id']}\n"
-                                    f"설명: {details['description']}",
-                                    "템플릿 파일 생성 성공"
-                                ))
-                                
-                                # 컨텍스트에 자동 추가
-                                if os.path.exists(actual_path):
-                                    file_manager.add([actual_path])
-                                    console.print(panels.create_file_added_panel(f"생성된 파일이 컨텍스트에 추가되었습니다: {actual_path}"))
-                            else:
-                                interactive_ui.display_command_results('template', {'error': True, 'message': '파일 생성에 실패했습니다.'}, console)
-                        
-                        # 대화 종료
-                        ai_conversation_state["active"] = False
-                        ai_conversation_state["stage"] = None
-                        ai_conversation_state["selected_template"] = None
-                    else:
-                        # 정보가 부족하면 추가 정보 요청
-                        missing = details.get("missing_info", [])
-                        message = f"다음 정보가 더 필요합니다: {', '.join(missing)}\n\n다시 입력해주세요."
-                        console.print(panels.create_ai_response_panel(message))
-                    continue
+            # AI 대화 상태 처리 - 제거됨 (/new 명령어로 대체)
 
             # "수정해줘" 등 edit 요청 키워드 감지 시 edit 모드로 자동 전환
             elif any(keyword in user_input for keyword in ["수정해줘", "수정해 줘", "바꿔줘", "바꿔 줘", "고쳐줘", "고쳐 줘", "편집해줘", "편집해 줘"]):
@@ -556,8 +509,8 @@ def main():
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
-                known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
+                known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -567,48 +520,7 @@ def main():
                     continue
 
             else:
-                # 필요한 경우에만 의도 분석 수행
-                if needs_intent_analysis(user_input):
-                    analysis = ai_assistant.analyze_user_intent(user_input)
-                    
-                    if analysis.get("is_file_creation") and analysis.get("confidence", 0) > 0.7:
-                        # 파일 생성 의도가 감지되면 템플릿 대화 시작
-                        console.print(f"[bold green]✅ 파일 생성 요청이 감지되었습니다.[/bold green]")
-                        
-                        # 선택적 reasoning 표시
-                        if show_reasoning_for_analysis(analysis):
-                            console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]\n")
-                        
-                        conversation = ai_assistant.start_template_conversation(user_input, analysis)
-                        if conversation:
-                            # 템플릿 목록 표시
-                            table = template_manager.display_templates_table()
-                            console.print(table)
-                            console.print()
-                            
-                            # AI 메시지 표시
-                            console.print(panels.create_ai_response_panel(conversation["message"]))
-                            
-                            # 대화 상태 활성화
-                            ai_conversation_state["active"] = True
-                            ai_conversation_state["stage"] = "template_selection"
-                        continue
-                    
-                    elif analysis.get("is_file_modification") and analysis.get("confidence", 0) > 0.7:
-                        # AI가 파일 수정 의도를 감지하면 자동으로 edit 모드로 전환
-                        console.print(f"[bold yellow]🔧 AI가 파일 수정 요청을 감지했습니다.[/bold yellow]")
-                        
-                        # 선택적 reasoning 표시
-                        if show_reasoning_for_analysis(analysis):
-                            console.print(f"[dim]🤖 AI: {analysis.get('reasoning', '')}[/dim]")
-                        
-                        console.print(f"[dim]💡 수정사항을 적용하기 위해 Edit 모드로 전환합니다.[/dim]")
-                        
-                        task = 'edit'
-                        modification_auto_apply = True  # 자동 apply 플래그 설정
-                        interactive_ui.display_command_results('mode', {'success': True, 'message': 'Edit 모드로 전환되었습니다.'}, console)
-                        
-                        # edit 모드에서 바로 처리하도록 continue 하지 않고 아래로 진행
+                # 의도 분석 제거됨 - 직접 ask 모드 처리
                 
                 # 파일 분석 요청 감지 및 안내
                 file_request = interactive_ui.detect_file_analysis_request(user_input)
@@ -725,26 +637,8 @@ def main():
                             pass  # 자동 분석 실패는 조용히 넘어감
                 else:
                     # Ask 모드: 응답 처리
-                    # 의도 분석 JSON 응답인지 확인 (is_file_creation, is_file_modification 키 포함)
-                    import json
-                    try:
-                        # JSON 파싱 시도
-                        json_content = response_content.strip()
-                        if json_content.startswith('```json'):
-                            json_content = json_content.replace('```json', '').replace('```', '').strip()
-                        
-                        parsed = json.loads(json_content)
-                        # 의도 분석 응답인지 확인
-                        if isinstance(parsed, dict) and ('is_file_creation' in parsed or 'is_file_modification' in parsed):
-                            # 의도 분석 응답은 표시하지 않고 일반 질문으로 다시 처리
-                            console.print(panels.create_warning_panel("일반 질문에 대한 응답을 생성하지 못했습니다. 다시 시도해주세요."))
-                        else:
-                            # 정상적인 JSON 응답 (입출력 분석 등)
-                            formatted = formatter.format_json_response(response_content, force_json)
-                            if formatted is None:
-                                console.print(panels.create_ai_response_panel(response_content))
-                    except (json.JSONDecodeError, TypeError):
-                        # JSON이 아닌 일반 응답
+                    formatted = formatter.format_json_response(response_content, force_json)
+                    if formatted is None:
                         console.print(panels.create_ai_response_panel(response_content))
 
 

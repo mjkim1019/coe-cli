@@ -114,6 +114,7 @@ class InteractiveUI:
 [yellow]/ask[/yellow] - 질문/분석 모드 (코드 설명, 버그 분석 등)
 [yellow]/edit[/yellow] - 수정/구현 모드 (실제 파일 변경, 코드 생성)
 [yellow]/edit[/yellow] <전략> - 특정 전략으로 edit 모드 (예: /edit udiff, /edit block)
+[yellow]/new[/yellow] - 템플릿 기반 새 파일 생성
 
 
 [bold cyan]•  파일 편집 명령어:[/bold cyan]
@@ -164,8 +165,8 @@ class InteractiveUI:
         """알려진 명령어가 아닌 경우 에러 메시지"""
         from rich.panel import Panel
         
-        known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply', 
-                        '/history', '/debug', '/rollback', '/ask', '/edit', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
+        known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
+                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
         
         if command_part not in [cmd.lower() for cmd in known_commands]:
             error_panel = Panel(
