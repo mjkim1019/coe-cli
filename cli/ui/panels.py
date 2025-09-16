@@ -221,3 +221,61 @@ class UIPanels:
             style="white",
             border_style="cyan"
         )
+
+    def create_llm_result_panel(self, file_path: str, llm_analysis: Dict[str, Any]) -> Optional[Panel]:
+        """LLM 분석 결과를 적절한 패널로 변환"""
+        filename = os.path.basename(file_path)
+
+        # 표시 조건 및 내용 결정
+        should_display = False
+        display_content = ""
+
+        if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
+            # JSON 파싱 성공한 경우 - purpose 필드 기반 표시
+            purpose_text = llm_analysis.get('purpose', 'N/A')
+            # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
+            import re
+            purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
+            purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
+            purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
+            purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
+
+            display_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
+            should_display = True
+
+        elif llm_analysis.get('raw_response'):
+            # JSON 파싱 실패했지만 raw_response가 있는 경우 - raw response 내용을 직접 표시
+            raw_response = llm_analysis.get('raw_response', '')
+            if len(raw_response.strip()) > 10:  # 의미있는 내용이 있는 경우만
+                display_content = f"**AI 분석 결과**: \n{raw_response.strip()}\n\n"
+                should_display = True
+
+        elif isinstance(llm_analysis, dict) and len(llm_analysis) > 0:
+            # purpose나 raw_response가 없지만 다른 구조화된 데이터가 있는 경우 (예: graph 구조)
+            # JSON 전체 내용을 문자열로 변환하여 표시
+            import json
+            try:
+                formatted_json = json.dumps(llm_analysis, ensure_ascii=False, indent=2)
+                display_content = f"**AI 분석 결과**: \n```json\n{formatted_json}\n```\n\n"
+                should_display = True
+            except Exception:
+                # JSON 직렬화 실패시 기본 문자열 표시
+                display_content = f"**AI 분석 결과**: \n{str(llm_analysis)}\n\n"
+                should_display = True
+
+        if not should_display:
+            return None
+
+        # Input/Output 분석 결과가 있으면 테이블로 표시 준비
+        has_io_analysis = 'input_output_analysis' in llm_analysis and llm_analysis['input_output_analysis']
+
+        if has_io_analysis:
+            # suggestions 추가
+            if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
+                display_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
+
+            # 분석 요약 패널 반환 (IO 테이블은 별도로 처리됨)
+            return self.create_analysis_summary_panel(file_path, llm_analysis)
+        else:
+            # IO 분석이 없는 경우 간단한 패널로 표시
+            return self.create_simple_analysis_panel(file_path, display_content)

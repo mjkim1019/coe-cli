@@ -193,61 +193,27 @@ def main():
                                     results_displayed = 0
                                     for file_path, llm_analysis in llm_results.items():
                                         console.print(f"[dim]DEBUG: 파일 {file_path} 분석 중... purpose: {llm_analysis.get('purpose', 'None')}[/dim]")
-                                        
-                                        # 파싱 성공한 경우 또는 raw_response가 있는 경우 모두 표시
-                                        should_display = False
-                                        display_content = ""
-                                        
-                                        if llm_analysis.get('purpose') and llm_analysis.get('purpose') != 'LLM 분석 결과 파싱 실패':
-                                            # JSON 파싱 성공한 경우
-                                            purpose_text = llm_analysis.get('purpose', 'N/A')
-                                            # 의미 단위로 줄바꿈 처리 (문장부호와 접속사 기준)
-                                            import re
-                                            purpose_formatted = re.sub(r'(\.)', r'\1\n', purpose_text)  # 문장 끝에서 줄바꿈
-                                            purpose_formatted = re.sub(r'( - )', r'\n\1', purpose_formatted)  # 대시 앞에서 줄바꿈
-                                            purpose_formatted = re.sub(r'(입니다\. )', r'\1\n', purpose_formatted)  # '입니다.' 뒤에 줄바꿈
-                                            purpose_formatted = re.sub(r'(습니다\. )', r'\1\n', purpose_formatted)  # '습니다.' 뒤에 줄바꿈
-                                            
-                                            display_content = f"**목적**: \n{purpose_formatted.strip()}\n\n"
-                                            should_display = True
-                                        
-                                        elif llm_analysis.get('raw_response'):
-                                            # JSON 파싱 실패했지만 raw_response가 있는 경우 - raw response 내용을 직접 표시
-                                            raw_response = llm_analysis.get('raw_response', '')
-                                            if len(raw_response.strip()) > 10:  # 의미있는 내용이 있는 경우만
-                                                display_content = f"**AI 분석 결과**: \n{raw_response.strip()}\n\n"
-                                                should_display = True
-                                        
-                                        if should_display:
-                                            filename = os.path.basename(file_path)
-                                            llm_content = display_content
-                                            
-                                            # Input/Output 분석 결과가 있으면 테이블로 표시
+
+                                        # panels.py의 create_llm_result_panel 메서드 사용
+                                        llm_panel = panels.create_llm_result_panel(file_path, llm_analysis)
+
+                                        if llm_panel:
+                                            console.print(llm_panel)
+
+                                            # Input/Output 분석 결과가 있으면 추가 테이블 표시
                                             has_io_analysis = 'input_output_analysis' in llm_analysis and llm_analysis['input_output_analysis']
-                                            
                                             if has_io_analysis:
                                                 io_analysis = llm_analysis['input_output_analysis']
                                                 io_tables = formatter.create_io_tables(io_analysis)
-                                                
-                                                if 'suggestions' in llm_analysis and llm_analysis['suggestions']:
-                                                    llm_content += f"**개선사항**: {llm_analysis['suggestions']}\n"
-                                                
-                                                llm_panel = panels.create_analysis_summary_panel(file_path, llm_analysis)
-                                                console.print(llm_panel)
-                                                
                                                 # Input/Output 테이블들을 표시
                                                 for table in io_tables:
                                                     console.print(table)
-                                            else:
-                                                # IO 분석이 없는 경우 간단한 패널로 표시
-                                                simple_panel = panels.create_simple_analysis_panel(file_path, llm_content)
-                                                console.print(simple_panel)
-                                            
+
                                             console.print()  # 빈 줄 추가
                                             results_displayed += 1
                                         else:
                                             console.print(f"[dim]DEBUG: {file_path} - 표시할 콘텐츠 없음 (전체 결과: {llm_analysis})[/dim]")
-                                    
+
                                     if results_displayed == 0:
                                         console.print("[yellow]LLM 분석은 완료되었으나 표시할 결과가 없습니다.[/yellow]")
                                 else:
