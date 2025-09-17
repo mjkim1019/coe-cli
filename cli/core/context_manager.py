@@ -31,8 +31,8 @@ class PromptBuilder:
         # 1. Add the main system prompt
         messages.append({"role": "system", "content": self.prompts.main_system})
 
-        # 2. Add repository map for complex queries (if needed)
-        repo_map = self._get_repo_map(user_input, file_context, file_manager)
+        # 2. Add repository map (if manually generated)
+        repo_map = self._get_cached_repo_map()
         if repo_map:
             repo_prompt_content = f"Repository Structure Overview:\n```\n{repo_map}\n```\n\nUse this overview to better understand the codebase structure when answering questions."
             messages.append({
@@ -289,63 +289,55 @@ class PromptBuilder:
 
         return structure_text
 
-    def _get_repo_map(self, user_input: str, file_context: dict, file_manager=None):
-        """레포지토리 맵 즉시 생성 (캐싱 적용)"""
-        DebugManager.repo_map("레포맵 즉시 생성 모드 시작")
-        DebugManager.repo_map(f"- user_input: '{user_input[:50]}{'...' if len(user_input) > 50 else ''}'")
-        DebugManager.repo_map(f"- file_context: {len(file_context) if file_context else 0}개 파일")
-
-        # 캐시 키 생성 (파일 컨텍스트와 file_manager 파일들 기반)
-        cache_key = self._generate_cache_key(file_context, file_manager)
-        DebugManager.repo_map(f"캐시 키: {cache_key}")
-
-        # 캐시 확인
-        if cache_key in self._repo_map_cache:
-            cached_repo_map = self._repo_map_cache[cache_key]
+    def _get_cached_repo_map(self):
+        """캐시된 레포맵 조회 (자동 생성 없음)"""
+        if self._repo_map_cache:
+            # 가장 최근 캐시된 레포맵 반환
+            latest_key = list(self._repo_map_cache.keys())[-1]
+            cached_repo_map = self._repo_map_cache[latest_key]
             DebugManager.repo_map(f"✅ 캐시된 레포맵 사용 ({len(cached_repo_map)} chars)")
             return cached_repo_map
 
-        DebugManager.repo_map("캐시 미스 - 새로운 레포맵 생성")
+        DebugManager.repo_map("캐시된 레포맵 없음 - /repo 명령으로 생성 필요")
+        return None
 
-        # 즉시 생성 모드: 복잡성 판단 로직 제거하고 바로 레포맵 생성
+    def generate_repo_map_manually(self, target_files: list, file_manager=None):
+        """수동으로 레포맵 생성 (/repo 명령어용)"""
+        DebugManager.repo_map("수동 레포맵 생성 시작")
+        DebugManager.repo_map(f"- 대상 파일들: {target_files}")
+
         try:
             from cli.coders.repo_mapper import RepoMapper
 
             # 파일 정보 수집
-            chat_files = list(file_context.keys()) if file_context else None
+            chat_files = target_files if target_files else None
             other_files = []
 
             # file_manager에서 추가 파일 정보 가져오기
             if file_manager and hasattr(file_manager, 'files'):
                 other_files = list(file_manager.files.keys())
 
-            # 언급된 파일명이나 식별자 추출
-            mentioned_fnames = self._extract_mentioned_files(user_input)
-            mentioned_idents = self._extract_mentioned_identifiers(user_input)
-
-            DebugManager.repo_map(f"- mentioned_fnames: {mentioned_fnames}")
-            DebugManager.repo_map(f"- mentioned_idents: {mentioned_idents}")
-
             # RepoMapper로 맵 생성
             repo_mapper = RepoMapper()
             repo_map = repo_mapper.generate_map(
                 chat_files=chat_files,
                 other_files=other_files,
-                mentioned_fnames=mentioned_fnames,
-                mentioned_idents=mentioned_idents
+                mentioned_fnames=target_files,
+                mentioned_idents=[]
             )
 
             if repo_map and len(repo_map.strip()) > 50:
-                # 캐시에 저장
+                # 캐시에 저장 (새로운 키로)
+                cache_key = self._generate_manual_cache_key(target_files)
                 self._repo_map_cache[cache_key] = repo_map
-                DebugManager.repo_map("✅ 레포맵 생성 성공하여 캐시에 저장 및 프롬프트에 포함")
+                DebugManager.repo_map("✅ 수동 레포맵 생성 성공하여 캐시에 저장")
                 return repo_map
             else:
-                DebugManager.repo_map(f"❌ 레포맵이 너무 짧아서 제외 ({len(repo_map) if repo_map else 0} chars)")
+                DebugManager.repo_map(f"❌ 레포맵이 너무 짧음 ({len(repo_map) if repo_map else 0} chars)")
                 return None
 
         except Exception as e:
-            DebugManager.error(f"레포맵 생성 실패: {e}")
+            DebugManager.error(f"수동 레포맵 생성 실패: {e}")
             return None
 
     def _generate_cache_key(self, file_context: dict, file_manager=None):
@@ -373,10 +365,33 @@ class PromptBuilder:
 
         return cache_key
 
+    def _generate_manual_cache_key(self, target_files: list):
+        """수동 생성용 캐시 키 생성"""
+        sorted_files = sorted(target_files) if target_files else []
+        cache_key = "MANUAL:" + "|".join(sorted_files)
+
+        # 너무 긴 키는 해시로 축약
+        if len(cache_key) > 200:
+            import hashlib
+            cache_key = "MANUAL:" + hashlib.md5(cache_key.encode()).hexdigest()
+
+        return cache_key
+
     def clear_repo_map_cache(self):
         """레포맵 캐시 클리어"""
         self._repo_map_cache.clear()
         DebugManager.repo_map("레포맵 캐시 클리어됨")
+
+    def get_repo_map_status(self):
+        """레포맵 상태 확인"""
+        if not self._repo_map_cache:
+            return "❌ 생성된 레포맵 없음"
+
+        cache_count = len(self._repo_map_cache)
+        latest_key = list(self._repo_map_cache.keys())[-1]
+        latest_size = len(self._repo_map_cache[latest_key])
+
+        return f"✅ 캐시된 레포맵: {cache_count}개, 최신 크기: {latest_size} chars"
 
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""

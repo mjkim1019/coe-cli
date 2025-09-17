@@ -87,12 +87,26 @@ class EditBlockCoder(BaseCoder):
         
         for file_path, blocks_content in file_matches:
             file_path = file_path.strip()
-            
-            if file_path not in context_files:
+
+            # 파일 경로를 여러 방식으로 매칭 시도
+            target_file = None
+            if file_path in context_files:
+                target_file = file_path
+            else:
+                # 파일명만으로 매칭 시도
+                filename = file_path.split('/')[-1]
+                for ctx_file in context_files.keys():
+                    if ctx_file.endswith(filename) or ctx_file.split('/')[-1] == filename:
+                        target_file = ctx_file
+                        DebugManager.info(f"[EditBlock] 파일명으로 매칭: {file_path} -> {target_file}")
+                        break
+
+            if not target_file:
                 DebugManager.info(f"[EditBlock] 컨텍스트에 없는 파일: {file_path}")
+                DebugManager.info(f"[EditBlock] 사용 가능한 파일들: {list(context_files.keys())}")
                 continue
-                
-            original_content = context_files[file_path]
+
+            original_content = context_files[target_file]
             modified_content = original_content
             
             # 각 SEARCH/REPLACE 블록 처리
@@ -123,7 +137,7 @@ class EditBlockCoder(BaseCoder):
                             DebugManager.info(f"[EditBlock] 유사한 라인 {line_num}: '{line}'")
                             break
             
-            files[file_path] = modified_content
+            files[target_file] = modified_content
         
         return files
     

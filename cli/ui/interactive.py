@@ -104,8 +104,9 @@ class InteractiveUI:
 [yellow]/add[/yellow] <file1|dir1> <file2|dir2> ... - 파일 또는 디렉토리를 재귀적으로 세션에 추가
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
-[yellow]/analyze[/yellow] <directory> - 디렉토리 구조 분석 및 프로젝트 인사이트 제공
 [yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
+[yellow]/repo[/yellow] <file1> <file2> ... - 지정한 파일들로 Repository Map 생성 (질문 시 자동 포함)
+[yellow]/repo[/yellow] - 현재 Repository Map 상태 확인
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 

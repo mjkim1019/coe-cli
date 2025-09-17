@@ -81,6 +81,33 @@ def main():
                 console.print(interactive_ui.display_help_panel())
                 continue
 
+            elif user_input.strip().lower().startswith('/repo'):
+                # PromptBuilder import를 블록 밖으로 이동
+                from cli.core.context_manager import PromptBuilder
+
+                parts = user_input.strip().split()
+                if len(parts) > 1:
+                    target_files = [p.replace('@', '') for p in parts[1:]]
+
+                    # PromptBuilder 인스턴스 생성 (ask용)
+                    prompt_builder = PromptBuilder('ask')
+
+                    # 수동으로 레포맵 생성
+                    repo_map = prompt_builder.generate_repo_map_manually(target_files, file_manager)
+
+                    if repo_map:
+                        console.print(panels.create_repo_map_panel(repo_map))
+                        console.print(f"•  RepoMap 생성 완료! '/ask' 명령시 자동으로 포함됩니다.")
+                    else:
+                        console.print("[red]•  RepoMap 생성에 실패했습니다.[/red]")
+                else:
+                    # 상태 확인
+                    prompt_builder = PromptBuilder('ask')
+                    status = prompt_builder.get_repo_map_status()
+                    console.print(f"[cyan]•  RepoMap 상태: {status}[/cyan]")
+                    console.print("[dim]사용법: /repo <파일1> <파일2> ... 또는 /repo (상태 확인)[/dim]")
+                continue
+
             elif user_input.strip().lower().startswith('/add '):
                 parts = user_input.strip().split()
                 if len(parts) > 1:
@@ -105,22 +132,6 @@ def main():
                     interactive_ui.display_command_results('/tree', {'message': "추가된 파일이 없습니다. '/add <파일경로>' 명령으로 파일을 추가하세요."}, console)
                 continue
 
-            elif user_input.strip().lower().startswith('/analyze '):
-                parts = user_input.strip().split()
-                if len(parts) > 1:
-                    directory_path = parts[1].replace('@', '')  # @ 제거
-                    # 상대 경로를 절대 경로로 변환
-                    if not os.path.isabs(directory_path):
-                        directory_path = os.path.abspath(directory_path)
-                    
-                    if os.path.isdir(directory_path):
-                        analysis = file_manager.analyze_directory_structure(directory_path)
-                        console.print(panels.create_directory_analysis_panel(analysis))
-                    else:
-                        interactive_ui.display_command_results('/analyze', {'error': True, 'message': f"디렉토리를 찾을 수 없습니다: {directory_path}"}, console)
-                else:
-                    interactive_ui.display_command_results('/analyze', {'error': True, 'message': '사용법: /analyze @<directory_path> 또는 /analyze <directory_path>'}, console)
-                continue
 
             elif user_input.strip().lower().startswith('/info '):
                 parts = user_input.strip().split()
@@ -423,8 +434,8 @@ def main():
 
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
-                known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
+                known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()

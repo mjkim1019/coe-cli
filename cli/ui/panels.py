@@ -279,3 +279,19 @@ class UIPanels:
         else:
             # IO 분석이 없는 경우 간단한 패널로 표시
             return self.create_simple_analysis_panel(file_path, display_content)
+
+    def create_repo_map_panel(self, repo_map: str):
+        """RepoMap 표시 패널"""
+        # 레포맵이 너무 길면 축약
+        if len(repo_map) > 2000:
+            preview = repo_map[:2000] + "\n\n[... truncated for display ...]"
+        else:
+            preview = repo_map
+
+        return Panel(
+            preview,
+            title="•  Repository Structure Map",
+            title_align="left",
+            border_style="cyan",
+            padding=(1, 2)
+        )
