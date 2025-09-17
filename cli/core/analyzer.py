@@ -18,6 +18,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.tree import Tree
 from rich.markdown import Markdown
+from .debug_manager import DebugManager
 
 
 class CoeAnalyzer:
@@ -69,23 +70,23 @@ class CoeAnalyzer:
         """LLM을 통한 파일 분석"""
         llm_results = {}
         
-        self.console.print(f"[dim]DEBUG: _perform_llm_analysis 시작, 파일 수: {len(files_data)}[/dim]")
+        DebugManager.llm(f"_perform_llm_analysis 시작, 파일 수: {len(files_data)}")
         
         for file_path, file_info in files_data.items():
             try:
-                self.console.print(f"[dim]DEBUG: 파일 처리 시작: {file_path}[/dim]")
+                DebugManager.llm(f"파일 처리 시작: {file_path}")
                 
                 # 파일 내용 가져오기
                 content = self.file_manager.files.get(file_path, "")
-                self.console.print(f"[dim]DEBUG: 파일 내용 길이: {len(content)}[/dim]")
-                
+                DebugManager.llm(f"파일 내용 길이: {len(content)}")
+
                 if not content:
-                    self.console.print(f"[dim]DEBUG: 파일 내용이 비어있어 건너뜀: {file_path}[/dim]")
+                    DebugManager.llm(f"파일 내용이 비어있어 건너뜀: {file_path}")
                     continue
-                
+
                 # LLM 분석 프롬프트 구성
                 analysis_prompt = self._build_analysis_prompt(file_path, file_info, content)
-                self.console.print(f"[dim]DEBUG: 프롬프트 길이: {len(analysis_prompt)}[/dim]")
+                DebugManager.llm(f"프롬프트 길이: {len(analysis_prompt)}")
                 
                 # LLM 호출
                 messages = [
@@ -93,20 +94,20 @@ class CoeAnalyzer:
                     {"role": "user", "content": analysis_prompt}
                 ]
                 
-                self.console.print(f"[dim]DEBUG: LLM 호출 시작[/dim]")
+                DebugManager.llm("LLM 호출 시작")
                 response = self.llm_service.chat_completion(messages)
                 
                 if response and "choices" in response:
                     llm_content = response["choices"][0]["message"]["content"]
-                    self.console.print(f"[dim]DEBUG: LLM 응답 길이: {len(llm_content)}[/dim]")
-                    self.console.print(f"[dim]DEBUG: LLM 응답 미리보기: {llm_content[:200]}...[/dim]")
+                    DebugManager.llm(f"LLM 응답 길이: {len(llm_content)}")
+                    DebugManager.llm(f"LLM 응답 미리보기: {llm_content[:200]}...")
                     
                     parsed_result = self._parse_llm_response(llm_content)
-                    self.console.print(f"[dim]DEBUG: 파싱 결과 키들: {list(parsed_result.keys()) if isinstance(parsed_result, dict) else 'not dict'}[/dim]")
+                    DebugManager.llm(f"파싱 결과 키들: {list(parsed_result.keys()) if isinstance(parsed_result, dict) else 'not dict'}")
                     
                     llm_results[file_path] = parsed_result
                 else:
-                    self.console.print(f"[dim]DEBUG: LLM 응답이 비어있음 또는 형식 오류[/dim]")
+                    DebugManager.llm("LLM 응답이 비어있음 또는 형식 오류")
                 
             except Exception as e:
                 self.console.print(f"[red]LLM 분석 실패 ({file_path}): {e}[/red]")
@@ -114,7 +115,7 @@ class CoeAnalyzer:
                 self.console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 continue
         
-        self.console.print(f"[dim]DEBUG: _perform_llm_analysis 완료, 결과 수: {len(llm_results)}[/dim]")
+        DebugManager.llm(f"_perform_llm_analysis 완료, 결과 수: {len(llm_results)}")
         return llm_results
 
     def _build_analysis_prompt(self, file_path: str, file_info: Dict, content: str) -> str:

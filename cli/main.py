@@ -20,6 +20,7 @@ from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
 from cli.core.mcp_integration import MCPIntegration
+from cli.core.debug_manager import DebugManager
 from rich.console import Console
 from rich.panel import Panel
 from cli.ui.components import SwingUIComponents
@@ -460,15 +461,15 @@ def main():
                 response_content = llm_message['content']
                 
                 # DEBUG: LLM 응답 정보 표시
-                console.print(f"[dim]DEBUG: LLM 응답 길이: {len(response_content)}[/dim]")
-                console.print(f"[dim]DEBUG: LLM 응답 미리보기: {response_content[:200]}...[/dim]")
-                #console.print(f"[dim]DEBUG: JSON 강제 모드: {force_json}[/dim]")
+                DebugManager.llm(f"LLM 응답 길이: {len(response_content)}")
+                DebugManager.llm(f"LLM 응답 미리보기: {response_content[:200]}...")
+                #DebugManager.llm(f"JSON 강제 모드: {force_json}")
                 
                 # MCP 도구 호출 처리
                 mcp_result = mcp_integration.process_llm_response(response_content, user_input)
                 if mcp_result.get('has_tool_calls'):
                     # MCP 도구 호출 시 LLM 응답은 디버그로만 표시
-                    console.print(f"[dim]DEBUG: LLM 원본 응답: {response_content[:100]}...[/dim]")
+                    DebugManager.llm(f"LLM 원본 응답: {response_content[:100]}...")
                     
                     # LLM이 자연스럽게 변환한 답변을 AI Response로 표시
                     natural_response = mcp_result.get('natural_response', '응답을 생성할 수 없습니다.')

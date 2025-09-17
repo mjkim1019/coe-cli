@@ -8,6 +8,7 @@ from typing import Dict, List, Any, Optional
 from cli.core.context_manager import PromptBuilder
 from mcp.client import MCPClient
 from mcp.tools import MCPToolManager
+from .debug_manager import DebugManager
 
 
 class MCPPromptBuilder(PromptBuilder):
@@ -24,15 +25,14 @@ class MCPPromptBuilder(PromptBuilder):
         # MCP 도구 정보를 시스템 메시지에 추가
         if self.mcp_client and self._should_include_mcp_tools(user_input):
             from rich.console import Console
-            console = Console()
-            console.print(f"[dim]DEBUG: MCP 도구 정보를 프롬프트에 추가 중...[/dim]")
+            DebugManager.info("MCP 도구 정보를 프롬프트에 추가 중...")
             mcp_tools_info = self.mcp_client.format_tools_for_llm()
-            console.print(f"[dim]DEBUG: MCP 도구 정보 길이: {len(mcp_tools_info)} 글자[/dim]")
+            DebugManager.info(f"MCP 도구 정보 길이: {len(mcp_tools_info)} 글자")
             messages.insert(-1, {  # 마지막 사용자 메시지 앞에 삽입
                 "role": "system", 
                 "content": mcp_tools_info
             })
-            console.print(f"[dim]DEBUG: 최종 메시지 수: {len(messages)}개[/dim]")
+            DebugManager.info(f"최종 메시지 수: {len(messages)}개")
         
         return messages
     
@@ -88,15 +88,13 @@ class MCPIntegration:
         """LLM 응답에서 MCP 도구 호출 처리"""
         if not self.enabled or not self.tool_manager:
             from rich.console import Console
-            console = Console()
-            console.print(f"[dim]DEBUG: MCP가 비활성화되어 있거나 tool_manager가 없습니다.[/dim]")
+            DebugManager.info("MCP가 비활성화되어 있거나 tool_manager가 없습니다.")
             return {"has_tool_calls": False}
         
         from rich.console import Console
-        console = Console()
-        console.print(f"[dim]DEBUG: LLM 응답에서 도구 호출 확인 중... (응답 길이: {len(response_content)})[/dim]")
+        DebugManager.info(f"LLM 응답에서 도구 호출 확인 중... (응답 길이: {len(response_content)})")
         result = self.tool_manager.execute_tool_calls(response_content, original_question)
-        console.print(f"[dim]DEBUG: 도구 호출 결과: {result.get('has_tool_calls', False)}[/dim]")
+        DebugManager.info(f"도구 호출 결과: {result.get('has_tool_calls', False)}")
         
         return result
     

@@ -38,42 +38,60 @@ class DebugManager:
 
     @classmethod
     def repo_map(cls, message: str):
-        """RepoMap 관련 디버그 출력 (cyan)"""
+        """RepoMap 관련 디버그 출력 (dim cyan)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[cyan][RepoMap DEBUG][/cyan] {message}")
+            console.print(f"[cyan dim][RepoMap DEBUG][/cyan dim] [dim]{message}[/dim]")
 
     @classmethod
     def file_analysis(cls, message: str):
-        """파일 분석 관련 디버그 출력 (yellow)"""
+        """파일 분석 관련 디버그 출력 (dim yellow)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[yellow][FileAnalysis DEBUG][/yellow] {message}")
+            console.print(f"[yellow dim][FileAnalysis DEBUG][/yellow dim] [dim]{message}[/dim]")
 
     @classmethod
     def context(cls, message: str):
-        """컨텍스트 관련 디버그 출력 (blue)"""
+        """컨텍스트 관련 디버그 출력 (dim blue)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[blue][Context DEBUG][/blue] {message}")
+            console.print(f"[blue dim][Context DEBUG][/blue dim] [dim]{message}[/dim]")
 
     @classmethod
     def error(cls, message: str):
-        """에러 관련 디버그 출력 (red)"""
+        """에러 관련 디버그 출력 (dim red)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[red][Error DEBUG][/red] {message}")
+            console.print(f"[red dim][Error DEBUG][/red dim] [dim]{message}[/dim]")
 
     @classmethod
     def info(cls, message: str):
-        """일반 정보 디버그 출력 (기본색)"""
+        """일반 정보 디버그 출력 (dim)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[INFO DEBUG] {message}")
+            console.print(f"[dim][INFO DEBUG] {message}[/dim]")
 
     @classmethod
     def llm(cls, message: str):
-        """LLM 호출 관련 디버그 출력 (magenta)"""
+        """LLM 호출 관련 디버그 출력 (dim magenta)"""
         if cls._debug_enabled:
             console = cls._get_console()
-            console.print(f"[magenta][LLM DEBUG][/magenta] {message}")
+            console.print(f"[magenta dim][LLM DEBUG][/magenta dim] [dim]{message}[/dim]")
+
+    @classmethod
+    def prompt(cls, message: str):
+        """프롬프트 관련 디버그 출력 (dim green)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[green dim][Prompt DEBUG][/green dim] [dim]{message}[/dim]")
+
+    @classmethod
+    def prompt_content(cls, title: str, content: str, max_length: int = 500):
+        """프롬프트 내용 전체 출력 (긴 내용 지원)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[green dim][Prompt DEBUG][/green dim] [dim]{title}:[/dim]")
+            if len(content) > max_length:
+                console.print(f"[dim]{content[:max_length]}...[truncated, total: {len(content)} chars][/dim]")
+            else:
+                console.print(f"[dim]{content}[/dim]")

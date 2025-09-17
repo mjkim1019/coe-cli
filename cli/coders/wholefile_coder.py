@@ -6,6 +6,7 @@ import re
 from typing import Dict, List, Tuple
 from .base_coder import BaseCoder, registry
 from .wholefile_prompts import WholeFilePrompts
+from ..core.debug_manager import DebugManager
 
 class WholeFileCoder(BaseCoder):
     """전체 파일 교체 전략 - 파일 전체를 새로운 내용으로 대체"""
@@ -19,6 +20,8 @@ class WholeFileCoder(BaseCoder):
         
         # WholeFile 전략용 패턴들 (더 엄격한 매칭)
         patterns = [
+            # @ 기호 포함 형식: @path/file.ext\n```lang\ncontent\n```
+            r'^@([^\s\n`]+\.[a-zA-Z0-9]+)\s*\n```[a-zA-Z0-9]*\s*\n(.*?)\n```',
             # 표준 형식: path/file.ext\n```lang\ncontent\n```
             r'^([^\s\n`]+\.[a-zA-Z0-9]+)\s*\n```[a-zA-Z0-9]*\s*\n(.*?)\n```',
             # 상대 경로: ./path/file.ext\n```lang\ncontent\n```
@@ -39,11 +42,11 @@ class WholeFileCoder(BaseCoder):
         
         # 디버깅 정보 출력
         if not files:
-            print(f"[WholeFile DEBUG] 파싱 실패. 응답 미리보기:")
+            DebugManager.info(f"[WholeFile] 파싱 실패. 응답 미리보기:")
             preview = response[:300] + ("..." if len(response) > 300 else "")
-            print(f"[WholeFile DEBUG] '{preview}'")
+            DebugManager.info(f"[WholeFile] '{preview}'")
         else:
-            print(f"[WholeFile DEBUG] {len(files)}개 파일 파싱 성공: {list(files.keys())}")
+            DebugManager.info(f"[WholeFile] {len(files)}개 파일 파싱 성공: {list(files.keys())}")
         
         return files
     
