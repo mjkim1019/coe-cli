@@ -5,6 +5,9 @@ class PromptBuilder:
     def __init__(self, task: str):
         self.task = task
         self.prompts = self._load_prompt_class()
+        # RepoMap 캐싱용 저장소
+        self._repo_map_cache = {}
+        self._cache_key = None
 
     def _load_prompt_class(self):
         try:
@@ -31,10 +34,13 @@ class PromptBuilder:
         # 2. Add repository map for complex queries (if needed)
         repo_map = self._get_repo_map(user_input, file_context, file_manager)
         if repo_map:
+            repo_prompt_content = f"Repository Structure Overview:\n```\n{repo_map}\n```\n\nUse this overview to better understand the codebase structure when answering questions."
             messages.append({
                 "role": "system",
-                "content": f"Repository Structure Overview:\n```\n{repo_map}\n```\n\nUse this overview to better understand the codebase structure when answering questions."
+                "content": repo_prompt_content
             })
+            # RepoMap 프롬프트 내용 전체 출력
+            DebugManager.prompt_content("RepoMap이 프롬프트에 포함된 내용", repo_prompt_content)
 
         # 3. Add the file context
         if file_context:
@@ -56,10 +62,19 @@ class PromptBuilder:
 
         # 5. Add the final user request
         messages.append({"role": "user", "content": user_input})
-        
+
         # 5. Add the system reminder at the end
         if self.prompts.system_reminder:
             messages.append({"role": "system", "content": self.prompts.system_reminder})
+
+        # 전체 프롬프트 구성 디버그 출력
+        DebugManager.prompt(f"전체 프롬프트 메시지 수: {len(messages)}")
+        for i, msg in enumerate(messages):
+            role = msg.get('role', 'unknown')
+            content = msg.get('content', '')
+            DebugManager.prompt(f"Message {i+1} [{role}]: {len(content)} chars")
+            if i < 5:  # 처음 5개 메시지만 내용도 출력
+                DebugManager.prompt_content(f"Message {i+1} [{role}] 내용", content, max_length=200)
 
         return messages
 
@@ -275,10 +290,22 @@ class PromptBuilder:
         return structure_text
 
     def _get_repo_map(self, user_input: str, file_context: dict, file_manager=None):
-        """레포지토리 맵 즉시 생성 (복잡성 판단 없이)"""
+        """레포지토리 맵 즉시 생성 (캐싱 적용)"""
         DebugManager.repo_map("레포맵 즉시 생성 모드 시작")
         DebugManager.repo_map(f"- user_input: '{user_input[:50]}{'...' if len(user_input) > 50 else ''}'")
         DebugManager.repo_map(f"- file_context: {len(file_context) if file_context else 0}개 파일")
+
+        # 캐시 키 생성 (파일 컨텍스트와 file_manager 파일들 기반)
+        cache_key = self._generate_cache_key(file_context, file_manager)
+        DebugManager.repo_map(f"캐시 키: {cache_key}")
+
+        # 캐시 확인
+        if cache_key in self._repo_map_cache:
+            cached_repo_map = self._repo_map_cache[cache_key]
+            DebugManager.repo_map(f"✅ 캐시된 레포맵 사용 ({len(cached_repo_map)} chars)")
+            return cached_repo_map
+
+        DebugManager.repo_map("캐시 미스 - 새로운 레포맵 생성")
 
         # 즉시 생성 모드: 복잡성 판단 로직 제거하고 바로 레포맵 생성
         try:
@@ -309,7 +336,9 @@ class PromptBuilder:
             )
 
             if repo_map and len(repo_map.strip()) > 50:
-                DebugManager.repo_map("✅ 레포맵 생성 성공하여 프롬프트에 포함")
+                # 캐시에 저장
+                self._repo_map_cache[cache_key] = repo_map
+                DebugManager.repo_map("✅ 레포맵 생성 성공하여 캐시에 저장 및 프롬프트에 포함")
                 return repo_map
             else:
                 DebugManager.repo_map(f"❌ 레포맵이 너무 짧아서 제외 ({len(repo_map) if repo_map else 0} chars)")
@@ -318,6 +347,36 @@ class PromptBuilder:
         except Exception as e:
             DebugManager.error(f"레포맵 생성 실패: {e}")
             return None
+
+    def _generate_cache_key(self, file_context: dict, file_manager=None):
+        """캐시 키 생성 (파일들의 조합으로)"""
+        key_parts = []
+
+        # file_context의 파일들
+        if file_context:
+            sorted_files = sorted(file_context.keys())
+            key_parts.extend(sorted_files)
+
+        # file_manager의 파일들
+        if file_manager and hasattr(file_manager, 'files'):
+            fm_files = sorted(file_manager.files.keys())
+            key_parts.extend(fm_files)
+
+        # 중복 제거하고 정렬
+        unique_files = sorted(set(key_parts))
+        cache_key = "|".join(unique_files)
+
+        # 너무 긴 키는 해시로 축약
+        if len(cache_key) > 200:
+            import hashlib
+            cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+
+        return cache_key
+
+    def clear_repo_map_cache(self):
+        """레포맵 캐시 클리어"""
+        self._repo_map_cache.clear()
+        DebugManager.repo_map("레포맵 캐시 클리어됨")
 
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""
