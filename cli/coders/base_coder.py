@@ -116,13 +116,35 @@ class BaseCoder(ABC):
     def format_context_for_ai(self, context_files: Dict[str, str], user_request: str) -> str:
         """AI에게 전달할 컨텍스트 포맷팅"""
         formatted = f"편집 요청: {user_request}\n\n"
-        
+
         if context_files:
             formatted += "작업 파일들:\n\n"
             for file_path, content in context_files.items():
                 formatted += f"파일: {file_path}\n```\n{content}\n```\n\n"
-        
+
         return formatted
+
+    def get_repo_map(self,
+                     chat_files: Optional[List[str]] = None,
+                     other_files: Optional[List[str]] = None,
+                     mentioned_fnames: Optional[List[str]] = None,
+                     mentioned_idents: Optional[List[str]] = None,
+                     force_refresh: bool = False) -> Optional[str]:
+        """레포지토리 맵 생성 - 코드베이스의 구조적 개요 제공"""
+        from .repo_mapper import RepoMapper
+
+        # RepoMapper 인스턴스 생성 (캐싱 지원)
+        if not hasattr(self, '_repo_mapper') or force_refresh:
+            self._repo_mapper = RepoMapper()
+
+        # 레포맵 생성
+        return self._repo_mapper.generate_map(
+            chat_files=chat_files,
+            other_files=other_files,
+            mentioned_fnames=mentioned_fnames,
+            mentioned_idents=mentioned_idents,
+            force_refresh=force_refresh
+        )
 
 class CoderRegistry:
     """사용 가능한 모든 코더를 관리하는 레지스트리"""

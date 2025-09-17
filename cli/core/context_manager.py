@@ -27,25 +27,33 @@ class PromptBuilder:
         # 1. Add the main system prompt
         messages.append({"role": "system", "content": self.prompts.main_system})
 
-        # 2. Add the file context
+        # 2. Add repository map for complex queries (if needed)
+        repo_map = self._get_repo_map(user_input, file_context, file_manager)
+        if repo_map:
+            messages.append({
+                "role": "system",
+                "content": f"Repository Structure Overview:\n```\n{repo_map}\n```\n\nUse this overview to better understand the codebase structure when answering questions."
+            })
+
+        # 3. Add the file context
         if file_context:
             messages.append({"role": "system", "content": self.prompts.files_content_prefix})
             messages.append({"role": "assistant", "content": self.prompts.files_content_assistant_reply})
 
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
-                
+
                 # 상세 구조 분석 정보 추가 (백그라운드에서 CoeAnalyzer 사용)
                 detailed_analysis = self._get_detailed_analysis(file_path, content)
                 if detailed_analysis:
                     file_str += f"\n\n{detailed_analysis}"
-                
+
                 messages.append({"role": "system", "content": file_str})
 
-        # 3. Add existing history
+        # 4. Add existing history
         messages.extend(history)
 
-        # 4. Add the final user request
+        # 5. Add the final user request
         messages.append({"role": "user", "content": user_input})
         
         # 5. Add the system reminder at the end
@@ -262,5 +270,93 @@ class PromptBuilder:
         structure_text += "- 바인드 변수를 통한 안전한 파라미터 처리\n"
         if sql_info.get('validity_patterns'):
             structure_text += "- 99991231 또는 99991231235959를 사용한 유효성 체크 (무한대 날짜)\n"
-        
+
         return structure_text
+
+    def _get_repo_map(self, user_input: str, file_context: dict, file_manager=None):
+        """레포지토리 맵이 필요한 경우 생성"""
+        print(f"[RepoMap DEBUG] 레포맵 필요성 판단 중...")
+        print(f"[RepoMap DEBUG] - user_input: '{user_input[:50]}{'...' if len(user_input) > 50 else ''}'")
+        print(f"[RepoMap DEBUG] - file_context: {len(file_context) if file_context else 0}개 파일")
+
+        # 복잡한 질문인지 판단하는 키워드들
+        complex_keywords = [
+            '구조', 'structure', '전체', '프로젝트', '호출', 'call', '관계', 'relation',
+            '흐름', 'flow', '연결', 'connect', '함수들', 'functions', '어디서', '어디에'
+        ]
+
+        # 간단한 질문은 repomap 불필요
+        simple_keywords = ['이게 뭐야', '설명해줘', '어떻게 해', '수정해줘', '고쳐줘', '바꿔줘']
+
+        is_complex = any(keyword in user_input.lower() for keyword in complex_keywords)
+        is_simple = any(keyword in user_input.lower() for keyword in simple_keywords)
+
+        print(f"[RepoMap DEBUG] - is_complex: {is_complex}")
+        print(f"[RepoMap DEBUG] - is_simple: {is_simple}")
+
+        # 단순 질문이거나 파일 컨텍스트가 충분한 경우 repomap 생략
+        if is_simple or (file_context and len(file_context) >= 3):
+            print(f"[RepoMap DEBUG] 레포맵 생성 생략 (단순 질문이거나 컨텍스트 충분)")
+            return None
+
+        # 복잡한 질문이거나 파일 컨텍스트가 부족한 경우 repomap 생성
+        if is_complex or not file_context:
+            print(f"[RepoMap DEBUG] 레포맵 생성 필요 - 복잡한 질문이거나 컨텍스트 부족")
+            try:
+                from cli.coders.repo_mapper import RepoMapper
+
+                # 파일 정보 수집
+                chat_files = list(file_context.keys()) if file_context else None
+                other_files = []
+
+                # file_manager에서 추가 파일 정보 가져오기
+                if file_manager and hasattr(file_manager, 'files'):
+                    other_files = list(file_manager.files.keys())
+
+                # 언급된 파일명이나 식별자 추출
+                mentioned_fnames = self._extract_mentioned_files(user_input)
+                mentioned_idents = self._extract_mentioned_identifiers(user_input)
+
+                print(f"[RepoMap DEBUG] - mentioned_fnames: {mentioned_fnames}")
+                print(f"[RepoMap DEBUG] - mentioned_idents: {mentioned_idents}")
+
+                # RepoMapper로 맵 생성
+                repo_mapper = RepoMapper()
+                repo_map = repo_mapper.generate_map(
+                    chat_files=chat_files,
+                    other_files=other_files,
+                    mentioned_fnames=mentioned_fnames,
+                    mentioned_idents=mentioned_idents
+                )
+
+                if repo_map and len(repo_map.strip()) > 50:
+                    print(f"[RepoMap DEBUG] ✅ 레포맵 생성 성공하여 프롬프트에 포함")
+                    return repo_map
+                else:
+                    print(f"[RepoMap DEBUG] ❌ 레포맵이 너무 짧아서 제외 ({len(repo_map) if repo_map else 0} chars)")
+                    return None
+
+            except Exception as e:
+                print(f"[RepoMap DEBUG] ❌ 레포맵 생성 실패: {e}")
+                return None
+
+        print(f"[RepoMap DEBUG] 레포맵 생성 조건 미충족")
+        return None
+
+    def _extract_mentioned_files(self, text: str):
+        """텍스트에서 언급된 파일명 추출"""
+        import re
+        # 파일 패턴 (확장자가 있는 것들)
+        file_pattern = r'\b[\w/.-]+\.[a-zA-Z]{1,4}\b'
+        files = re.findall(file_pattern, text)
+        return [f for f in files if len(f) > 3 and '.' in f]
+
+    def _extract_mentioned_identifiers(self, text: str):
+        """텍스트에서 언급된 식별자 추출"""
+        import re
+        # 함수명이나 변수명 패턴 (언더스코어 포함)
+        ident_pattern = r'\b[a-zA-Z_]\w{2,}\b'
+        identifiers = re.findall(ident_pattern, text)
+        # 일반적인 단어 제외
+        excluded = {'파일', '함수', '변수', '코드', '프로그램', '시스템', '데이터', 'file', 'function', 'code', 'data'}
+        return [ident for ident in identifiers if ident.lower() not in excluded]
