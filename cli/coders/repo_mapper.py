@@ -100,10 +100,18 @@ class RepoMapper:
         return unique_files[:20]  # 최대 20개 파일로 제한
 
     def _scan_key_files(self) -> List[str]:
-        """주요 파일들만 스캔"""
+        """tests/fixtures 파일들만 스캔"""
         key_files = []
 
-        for root, dirs, filenames in os.walk(self.root_path):
+        # tests/fixtures 디렉토리만 스캔
+        fixtures_path = self.root_path / 'tests' / 'fixtures'
+        if not fixtures_path.exists():
+            DebugManager.repo_map("tests/fixtures 디렉토리를 찾을 수 없음")
+            return []
+
+        DebugManager.repo_map(f"tests/fixtures 디렉토리 스캔: {fixtures_path}")
+
+        for root, dirs, filenames in os.walk(fixtures_path):
             # 제외 디렉토리 필터링
             dirs[:] = [d for d in dirs if d not in self.exclude_dirs]
 
@@ -119,6 +127,7 @@ class RepoMapper:
                 if self._is_code_file(file_path):
                     key_files.append(str(rel_path))
 
+        DebugManager.repo_map(f"fixtures에서 {len(key_files)}개 파일 발견")
         return sorted(key_files)[:50]  # 최대 50개
 
     def _is_code_file(self, file_path: Path) -> bool:

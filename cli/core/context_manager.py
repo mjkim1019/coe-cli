@@ -1,4 +1,5 @@
 import importlib
+from .debug_manager import DebugManager
 
 class PromptBuilder:
     def __init__(self, task: str):
@@ -274,74 +275,49 @@ class PromptBuilder:
         return structure_text
 
     def _get_repo_map(self, user_input: str, file_context: dict, file_manager=None):
-        """레포지토리 맵이 필요한 경우 생성"""
-        print(f"[RepoMap DEBUG] 레포맵 필요성 판단 중...")
-        print(f"[RepoMap DEBUG] - user_input: '{user_input[:50]}{'...' if len(user_input) > 50 else ''}'")
-        print(f"[RepoMap DEBUG] - file_context: {len(file_context) if file_context else 0}개 파일")
+        """레포지토리 맵 즉시 생성 (복잡성 판단 없이)"""
+        DebugManager.repo_map("레포맵 즉시 생성 모드 시작")
+        DebugManager.repo_map(f"- user_input: '{user_input[:50]}{'...' if len(user_input) > 50 else ''}'")
+        DebugManager.repo_map(f"- file_context: {len(file_context) if file_context else 0}개 파일")
 
-        # 복잡한 질문인지 판단하는 키워드들
-        complex_keywords = [
-            '구조', 'structure', '전체', '프로젝트', '호출', 'call', '관계', 'relation',
-            '흐름', 'flow', '연결', 'connect', '함수들', 'functions', '어디서', '어디에'
-        ]
+        # 즉시 생성 모드: 복잡성 판단 로직 제거하고 바로 레포맵 생성
+        try:
+            from cli.coders.repo_mapper import RepoMapper
 
-        # 간단한 질문은 repomap 불필요
-        simple_keywords = ['이게 뭐야', '설명해줘', '어떻게 해', '수정해줘', '고쳐줘', '바꿔줘']
+            # 파일 정보 수집
+            chat_files = list(file_context.keys()) if file_context else None
+            other_files = []
 
-        is_complex = any(keyword in user_input.lower() for keyword in complex_keywords)
-        is_simple = any(keyword in user_input.lower() for keyword in simple_keywords)
+            # file_manager에서 추가 파일 정보 가져오기
+            if file_manager and hasattr(file_manager, 'files'):
+                other_files = list(file_manager.files.keys())
 
-        print(f"[RepoMap DEBUG] - is_complex: {is_complex}")
-        print(f"[RepoMap DEBUG] - is_simple: {is_simple}")
+            # 언급된 파일명이나 식별자 추출
+            mentioned_fnames = self._extract_mentioned_files(user_input)
+            mentioned_idents = self._extract_mentioned_identifiers(user_input)
 
-        # 단순 질문이거나 파일 컨텍스트가 충분한 경우 repomap 생략
-        if is_simple or (file_context and len(file_context) >= 3):
-            print(f"[RepoMap DEBUG] 레포맵 생성 생략 (단순 질문이거나 컨텍스트 충분)")
-            return None
+            DebugManager.repo_map(f"- mentioned_fnames: {mentioned_fnames}")
+            DebugManager.repo_map(f"- mentioned_idents: {mentioned_idents}")
 
-        # 복잡한 질문이거나 파일 컨텍스트가 부족한 경우 repomap 생성
-        if is_complex or not file_context:
-            print(f"[RepoMap DEBUG] 레포맵 생성 필요 - 복잡한 질문이거나 컨텍스트 부족")
-            try:
-                from cli.coders.repo_mapper import RepoMapper
+            # RepoMapper로 맵 생성
+            repo_mapper = RepoMapper()
+            repo_map = repo_mapper.generate_map(
+                chat_files=chat_files,
+                other_files=other_files,
+                mentioned_fnames=mentioned_fnames,
+                mentioned_idents=mentioned_idents
+            )
 
-                # 파일 정보 수집
-                chat_files = list(file_context.keys()) if file_context else None
-                other_files = []
-
-                # file_manager에서 추가 파일 정보 가져오기
-                if file_manager and hasattr(file_manager, 'files'):
-                    other_files = list(file_manager.files.keys())
-
-                # 언급된 파일명이나 식별자 추출
-                mentioned_fnames = self._extract_mentioned_files(user_input)
-                mentioned_idents = self._extract_mentioned_identifiers(user_input)
-
-                print(f"[RepoMap DEBUG] - mentioned_fnames: {mentioned_fnames}")
-                print(f"[RepoMap DEBUG] - mentioned_idents: {mentioned_idents}")
-
-                # RepoMapper로 맵 생성
-                repo_mapper = RepoMapper()
-                repo_map = repo_mapper.generate_map(
-                    chat_files=chat_files,
-                    other_files=other_files,
-                    mentioned_fnames=mentioned_fnames,
-                    mentioned_idents=mentioned_idents
-                )
-
-                if repo_map and len(repo_map.strip()) > 50:
-                    print(f"[RepoMap DEBUG] ✅ 레포맵 생성 성공하여 프롬프트에 포함")
-                    return repo_map
-                else:
-                    print(f"[RepoMap DEBUG] ❌ 레포맵이 너무 짧아서 제외 ({len(repo_map) if repo_map else 0} chars)")
-                    return None
-
-            except Exception as e:
-                print(f"[RepoMap DEBUG] ❌ 레포맵 생성 실패: {e}")
+            if repo_map and len(repo_map.strip()) > 50:
+                DebugManager.repo_map("✅ 레포맵 생성 성공하여 프롬프트에 포함")
+                return repo_map
+            else:
+                DebugManager.repo_map(f"❌ 레포맵이 너무 짧아서 제외 ({len(repo_map) if repo_map else 0} chars)")
                 return None
 
-        print(f"[RepoMap DEBUG] 레포맵 생성 조건 미충족")
-        return None
+        except Exception as e:
+            DebugManager.error(f"레포맵 생성 실패: {e}")
+            return None
 
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""
