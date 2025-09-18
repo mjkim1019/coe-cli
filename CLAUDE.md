@@ -49,6 +49,10 @@
 12. **💾 세션 이어서 하기**: 이전 작업 컨텍스트를 저장하고 복원하는 세션 연속성 기능 - 개발 예정
 13. **📄 템플릿 파일 생성**: 미리 정의된 템플릿을 바탕으로 새로운 파일을 생성하는 기능 - 개발 예정
 14. **📋 공통 MD 파일 생성**: 프로젝트 전반에서 참조할 마크다운 문서를 자동 생성하는 기능 - 개발 예정
+15. **📚 튜토리얼 모드**: 처음 사용자를 위한 대화형 가이드 (C/SQL/XML 파일 분석 실습) - 개발 예정
+16. **⚡ 프롬프트 캐싱**: OpenAI 프롬프트 캐싱을 통한 성능 최적화 - 개발 예정
+17. **👀 파일 감시**: 파일 시스템 변경 감지 및 자동 재분석 (Hot Reload) - 개발 예정
+18. **🛡️ Edit GuardRail**: 파일 변경 이력 추적 및 LLM 생성 변경 이유 주석 - 개발 예정
 
 ## 실행 방법
 
@@ -71,6 +75,8 @@
 
 
 ### 개발 예정 명령어
+- `/tutorial` - 처음 사용자를 위한 대화형 튜토리얼
+- `/watch <디렉토리>` - 파일 변경 감시 모드 시작/종료
 - `coe test` - 테스트 실행
 - `coe diff` - 변경점 확인
 - `coe patch` - 수정 적용
@@ -148,6 +154,114 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
 - **nullable 정보 필수**: 모든 입출력 파라미터에 nullable 여부 포함
 - **디버그 로그 유지**: LLM 분석 과정의 투명성을 위해 디버그 정보 출력
 - **Rich 테이블 형식**: 분석 결과를 보기 좋은 표 형태로 출력
+
+## 새로운 기능 상세 설명
+
+### 📚 튜토리얼 모드 (개발 예정)
+
+**목적**: 처음 사용하는 사용자가 실제 파일로 Swing CLI의 주요 기능을 체험할 수 있는 대화형 가이드
+
+**기능**:
+- `test_with_fixtures.py` 기반의 실습 시나리오
+- C, SQL, XML 파일별 특화 분석 실습
+- 단계별 Enter 키를 통한 진행/스킵 가능
+- 실제 `tests/fixtures/` 파일들을 사용한 체험
+
+**튜토리얼 단계**:
+1. **파일 추가 체험**: `ORDSS04S2050T01.c`, `ZORDSS0340082.XML`, `zord_svc_prod_grp_s0001.sql` 파일 추가
+2. **C 파일 분석**: IO Formatter 패턴, 함수 구조, DBIO 호출 분석
+3. **XML 파일 분석**: TrxCode 패턴, UI 컴포넌트, JavaScript 함수 분석
+4. **SQL 파일 분석**: 바인드 변수, 테이블 조인, Oracle 힌트 분석
+5. **질문/편집 실습**: Ask/Edit 모드로 실제 코드 분석 및 수정
+
+### ⚡ 프롬프트 캐싱 (개발 예정)
+
+**목적**: OpenAI API 프롬프트 캐싱을 활용한 성능 최적화 및 비용 절감
+
+**기능**:
+- 반복적으로 사용되는 시스템 프롬프트 캐싱
+- 파일별 특화 분석 프롬프트 캐싱 (C/SQL/XML)
+- 컨텍스트 프롬프트 자동 캐싱
+- 캐시 히트율 모니터링 및 통계
+
+**구현 방식**:
+```python
+# 예시 구현
+class PromptCacheManager:
+    def cache_system_prompt(self, file_type: str, prompt: str):
+        """파일 타입별 시스템 프롬프트 캐싱"""
+
+    def get_cached_prompt(self, cache_key: str):
+        """캐싱된 프롬프트 반환"""
+
+    def invalidate_cache(self, pattern: str):
+        """캐시 무효화"""
+```
+
+### 👀 파일 감시 기능 (개발 예정)
+
+**목적**: 파일 시스템 변경을 실시간으로 감지하고 자동으로 재분석 수행
+
+**기능**:
+- `watchdog` 라이브러리 기반 파일 시스템 감시
+- 지정된 디렉토리의 .c, .sql, .xml 파일 변경 감지
+- 변경 감지 시 자동 재분석 및 컨텍스트 업데이트
+- Hot Reload 방식의 실시간 분석 결과 반영
+
+**명령어**:
+```bash
+> /watch ./src                    # ./src 디렉토리 감시 시작
+> /watch stop                     # 감시 중지
+> /watch status                   # 감시 상태 확인
+```
+
+**구현 방식**:
+```python
+# 예시 구현
+class FileWatcher:
+    def start_watching(self, directory: str, extensions: List[str]):
+        """파일 감시 시작"""
+
+    def on_file_modified(self, event):
+        """파일 변경 이벤트 핸들러"""
+        # 자동 재분석 수행
+        # 컨텍스트 업데이트
+        # 사용자에게 알림
+```
+
+### 🛡️ Edit GuardRail (개발 예정)
+
+**목적**: 파일 변경 이력을 체계적으로 추적하고 변경 이유를 자동으로 문서화
+
+**기능**:
+- 모든 파일 편집에 대한 메타데이터 기록
+- LLM이 변경 이유를 자동으로 생성하여 주석으로 삽입
+- 누가(사용자), 언제(타임스탬프), 어디를(파일:라인), 왜(LLM 생성 이유) 변경했는지 추적
+- Git 스타일의 blame 기능과 연동
+
+**주석 형태**:
+```c
+// [SWING-CLI] 2024-01-15 14:30:25 by user123
+// [변경이유] 입력 검증 로직 강화를 위해 NULL 체크 추가
+if (input_data == NULL) {
+    return ERROR_INVALID_INPUT;
+}
+```
+
+**구현 방식**:
+```python
+class EditGuardRail:
+    def log_change(self, file_path: str, line_range: tuple,
+                   change_reason: str, user: str):
+        """변경 이력 기록"""
+
+    def generate_change_comment(self, old_code: str, new_code: str) -> str:
+        """LLM을 통한 변경 이유 생성"""
+
+    def insert_change_metadata(self, file_path: str, line_num: int,
+                              metadata: str):
+        """파일에 변경 메타데이터 주석 삽입"""
+```
 
 # 🚧 다음 세션 우선 작업 항목
 
