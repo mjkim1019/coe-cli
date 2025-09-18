@@ -67,44 +67,15 @@ class ResponseFormatter:
         if json_data.get('analysis_type') == 'input_output':
             formatted = True
             
-            # 입력 파라미터 표
-            if json_data.get('inputs'):
-                input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bright_white")
-                input_table.add_column("파라미터명")
-                input_table.add_column("타입")
-                input_table.add_column("Nullable")
-                input_table.add_column("설명")
-                
-                for inp in json_data['inputs']:
-                    nullable_text = "O" if inp.get('nullable', False) else "X"
-                    input_table.add_row(
-                        inp.get('name', 'N/A'),
-                        inp.get('type', 'N/A'),
-                        nullable_text,
-                        inp.get('description', 'N/A')
-                    )
-                self.console.print(input_table)
-                self.console.print()
-            
-            # 출력 값 표
-            if json_data.get('outputs'):
-                output_table = Table(title="• 출력 값", show_header=True, header_style="bright_white")
-                output_table.add_column("출력값명")
-                output_table.add_column("타입")
-                output_table.add_column("설명")
-                
-                for out in json_data['outputs']:
-                    output_table.add_row(
-                        out.get('name', 'N/A'),
-                        out.get('type', 'N/A'),
-                        out.get('description', 'N/A')
-                    )
-                self.console.print(output_table)
+            # create_io_tables 메서드를 사용하여 테이블 생성
+            io_tables = self.create_io_tables(json_data)
+            for table in io_tables:
+                self.console.print(table)
                 self.console.print()
             
             # 요약 표시
             if json_data.get('summary'):
-                self.console.print(Panel(json_data['summary'], title="• 분석 요약", border_style="white"))
+                self.console.print(Panel(json_data['summary'], title="• 분석 요약", border_style="yellow"))
         
         # 함수 호출관계 분석인 경우
         elif json_data.get('function_calls'):
@@ -182,7 +153,7 @@ class ResponseFormatter:
         # 입력 파라미터 테이블
         inputs = io_analysis.get('inputs', [])
         if inputs:
-            input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bright_white")
+            input_table = Table(title="• 입력 파라미터", show_header=True, header_style="bold green")
             input_table.add_column("파라미터명")
             input_table.add_column("타입")
             input_table.add_column("Nullable")
@@ -201,7 +172,7 @@ class ResponseFormatter:
         # 출력 값 테이블
         outputs = io_analysis.get('outputs', [])
         if outputs:
-            output_table = Table(title="• 출력 값", show_header=True, header_style="white")
+            output_table = Table(title="• 출력 값", show_header=True, header_style="bold green")
             output_table.add_column("출력값명")
             output_table.add_column("타입")
             output_table.add_column("설명")

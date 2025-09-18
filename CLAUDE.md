@@ -148,3 +148,150 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
 - **nullable 정보 필수**: 모든 입출력 파라미터에 nullable 여부 포함
 - **디버그 로그 유지**: LLM 분석 과정의 투명성을 위해 디버그 정보 출력
 - **Rich 테이블 형식**: 분석 결과를 보기 좋은 표 형태로 출력
+
+# 🚧 다음 세션 우선 작업 항목
+
+## 📋 **CoeAnalyzer 캐싱 시스템 구현**
+
+### **🎯 구현 계획 단계:**
+
+#### **1단계: CoeAnalyzer 캐싱 시스템 설계 ✅**
+- **목표**: Ask 모드에서 사용자가 구조 분석 요청 시 실행하고 결과 캐싱
+- **캐싱 범위**: RepoMap과 유사한 방식으로 파일별 분석 결과 저장
+- **트리거**: "구조 분석", "분석해줘", "어떤 파일이야" 등의 키워드 감지
+
+#### **2단계: Context Manager에 CoeAnalyzer 캐싱 추가**
+- **파일**: `cli/core/context_manager.py`
+- **기능 추가**:
+  ```python
+  class PromptBuilder:
+      def __init__(self, task: str):
+          self._coe_analysis_cache = {}  # 파일별 CoeAnalyzer 결과 캐싱
+
+      def get_cached_coe_analysis(self, file_path: str) -> Optional[Dict]:
+          """캐싱된 CoeAnalyzer 분석 결과 반환"""
+
+      def perform_coe_analysis_on_demand(self, file_path: str, file_manager) -> Dict:
+          """요청 시에만 CoeAnalyzer 실행하고 캐싱"""
+  ```
+
+#### **3단계: Ask 모드 키워드 감지 시스템**
+- **파일**: `cli/ui/interactive.py` 또는 새 모듈
+- **기능**:
+  ```python
+  def detect_structure_analysis_request(user_input: str, file_manager) -> Dict:
+      """구조 분석 요청 감지 및 대상 파일 추출"""
+      keywords = ['구조 분석', '분석해줘', '어떤 파일', '파일 구조', '코드 분석']
+      # 파일 경로 패턴과 키워드 매칭
+  ```
+
+#### **4단계: Main CLI에서 분석 요청 처리**
+- **파일**: `cli/main.py`
+- **위치**: Ask 모드 처리 로직 내
+- **처리 흐름**:
+  1. 사용자 입력에서 구조 분석 키워드 감지
+  2. 대상 파일 추출 (예: "ORDSS04S2050T01.c 구조 분석해줘")
+  3. 해당 파일이 컨텍스트에 있는지 확인
+  4. CoeAnalyzer 실행 (캐시 확인 후 필요시에만)
+  5. 분석 결과를 프롬프트에 포함하여 LLM 호출
+
+#### **5단계: 프롬프트에 CoeAnalyzer 결과 통합**
+- **파일**: `cli/core/context_manager.py`의 `build()` 메서드
+- **기능**:
+  ```python
+  def build(self, user_input: str, file_context: Dict, history: List, file_manager=None) -> List:
+      # 기존 로직...
+
+      # CoeAnalyzer 결과가 있으면 프롬프트에 추가
+      coe_analysis = self._get_relevant_coe_analysis(user_input, file_context)
+      if coe_analysis:
+          for file_path, analysis in coe_analysis.items():
+              analysis_str = f"File Structure Analysis for {file_path}:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}"
+              messages.append({"role": "system", "content": analysis_str})
+  ```
+
+#### **6단계: 디버그 출력 및 캐시 상태 확인**
+- **기능**: 어떤 파일에 대해 CoeAnalyzer 결과가 캐싱되어 있는지 확인
+- **명령어**: `/coe-cache` 또는 기존 `/files` 명령어에 통합
+- **디버그**: DebugManager에 CoeAnalyzer 관련 로깅 추가
+
+### **🎨 CoeAnalyzer 캐싱 구조:**
+```python
+# context_manager.py
+class PromptBuilder:
+    def __init__(self, task: str):
+        self._coe_analysis_cache = {
+            "file_path": {
+                "timestamp": "2024-xx-xx",
+                "analysis": {
+                    "purpose": "...",
+                    "key_functions": {...},
+                    "io_formatter_analysis": {...},
+                    "c000_main_proc_analysis": {...},
+                    "dbio_analysis": {...}
+                }
+            }
+        }
+```
+
+### **📍 수정 대상 파일:**
+- `cli/core/context_manager.py` (주요 캐싱 로직)
+- `cli/main.py` (Ask 모드에서 분석 요청 처리)
+- `cli/ui/interactive.py` (키워드 감지 함수)
+- `cli/core/debug_manager.py` (CoeAnalyzer 디버그 출력)
+
+### **✅ 완료 조건:**
+- `/add` 시에는 CoeAnalyzer 실행하지 않음 (성능 개선)
+- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 CoeAnalyzer 실행
+- 분석 결과가 프롬프트에 포함되어 더 정확한 답변 제공
+- 캐싱으로 동일 파일 재분석 방지
+- RepoMap과 유사한 방식의 일관된 캐싱 시스템
+
+## 📋 **이전 완료된 작업들**
+
+### **🎯 완료된 작업:**
+
+1. **🎨 Debug 출력 전용 매니저 클래스 생성** ✅
+   - `cli/core/debug_manager.py` 새 파일 생성 완료
+   - `DebugManager` 클래스 with Rich Console 통합 완료
+   - 색깔 코드 통일 (RepoMap=cyan, FileAnalysis=yellow, Error=red) 완료
+
+2. **🔄 기존 디버그 출력 교체** ✅
+   - 모든 `print("[RepoMap DEBUG]")` → `DebugManager.repo_map()` 교체 완료
+   - `cli/coders/repo_mapper.py` 수정 완료
+   - `cli/core/context_manager.py` 수정 완료
+
+3. **🚫 file_manager add 후 자동 AI 분석 제거** ✅
+   - `actions/file_manager.py`의 `add()` 메서드에서 LLM 호출 부분 제거 완료
+   - 기본 파일 분석만 유지 (파일 타입, 크기 등) 완료
+
+4. **⚡ RepoMap 수동 생성 모드** ✅
+   - `/repo` 명령어로 수동 RepoMap 생성 시스템 구현 완료
+   - RepoMap 캐싱 시스템 구현 완료
+
+5. **🔧 파일 경로 해결 시스템** ✅
+   - `cli/coders/repo_mapper.py` 수정
+   - `_scan_repository()` 메서드를 `tests/fixtures/` 경로만 스캔하도록 제한
+   - `_collect_priority_files()` 메서드도 동일하게 제한
+
+### **🎨 DebugManager 구조:**
+```python
+class DebugManager:
+    @staticmethod
+    def repo_map(message)      # [cyan] RepoMap 관련
+    def file_analysis(message) # [yellow] 파일 분석 관련
+    def context(message)       # [blue] 컨텍스트 관련
+    def error(message)         # [red] 에러 관련
+```
+
+### **📍 수정 대상 파일:**
+- `cli/core/debug_manager.py` (신규)
+- `cli/coders/repo_mapper.py`
+- `cli/core/context_manager.py`
+- `actions/file_manager.py`
+
+### **✅ 완료 조건:**
+- 모든 디버그 출력이 통일된 색깔로 표시
+- `/add` 명령어가 빠르게 동작 (자동 AI 분석 없음)
+- 질문 시 즉시 레포맵 생성
+- 레포맵이 tests/fixtures 파일만 대상으로 함

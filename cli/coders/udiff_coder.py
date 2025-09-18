@@ -6,6 +6,7 @@ import re
 from typing import Dict, List, Tuple
 from .base_coder import BaseCoder, registry
 from .udiff_prompts import UDiffPrompts
+from ..core.debug_manager import DebugManager
 
 class UDiffCoder(BaseCoder):
     """Unified diff 기반 편집 전략 - Git과 같은 표준 diff 형식 사용"""
@@ -17,7 +18,7 @@ class UDiffCoder(BaseCoder):
         """AI 응답에서 unified diff 추출하여 파일에 적용"""
         files = {}
         
-        print(f"[UDiff DEBUG] 파싱 시작, 응답 길이: {len(response)}")
+        DebugManager.info(f"[UDiff] 파싱 시작, 응답 길이: {len(response)}")
         
         # 여러 패턴으로 diff 블록 찾기
         patterns = [
@@ -31,23 +32,23 @@ class UDiffCoder(BaseCoder):
             matches = re.findall(pattern, response, re.DOTALL)
             if matches:
                 diff_matches.extend(matches)
-                print(f"[UDiff DEBUG] 패턴 매치: {len(matches)}개 diff")
+                DebugManager.info(f"[UDiff] 패턴 매치: {len(matches)}개 diff")
                 break
         
         if not diff_matches:
             # 백틱 없는 전체 diff도 시도
             if '---' in response and '+++' in response and '@@' in response:
                 diff_matches = [response]
-                print(f"[UDiff DEBUG] 전체 응답을 diff로 처리")
+                DebugManager.info(f"[UDiff] 전체 응답을 diff로 처리")
             else:
-                print(f"[UDiff DEBUG] diff 패턴 매치 실패")
-                print(f"[UDiff DEBUG] 응답 미리보기: {response[:200]}...")
+                DebugManager.info(f"[UDiff] diff 패턴 매치 실패")
+                DebugManager.info(f"[UDiff] 응답 미리보기: {response[:200]}...")
                 return files
         
         for diff_content in diff_matches:
             parsed_files = self._parse_unified_diff(diff_content, context_files)
             files.update(parsed_files)
-            print(f"[UDiff DEBUG] diff에서 {len(parsed_files)}개 파일 파싱됨")
+            DebugManager.info(f"[UDiff] diff에서 {len(parsed_files)}개 파일 파싱됨")
         
         return files
     
@@ -104,7 +105,7 @@ class UDiffCoder(BaseCoder):
                 modified_content = self._apply_hunks(context_files[current_file], hunks)
                 files[current_file] = modified_content
             else:
-                print(f"[UDiff DEBUG] 컨텍스트에 없는 파일: {current_file}")
+                DebugManager.info(f"[UDiff] 컨텍스트에 없는 파일: {current_file}")
         
         return files
     

@@ -6,6 +6,7 @@ import re
 from typing import Dict, List, Tuple
 from .base_coder import BaseCoder, registry
 from .editblock_prompts import EditBlockPrompts
+from ..core.debug_manager import DebugManager
 
 class EditBlockCoder(BaseCoder):
     """블록 기반 편집 전략 - 특정 코드 블록만 찾아서 교체"""
@@ -17,7 +18,7 @@ class EditBlockCoder(BaseCoder):
         """AI 응답에서 SEARCH/REPLACE 블록 추출하여 파일 적용"""
         files = {}
         
-        print(f"[EditBlock DEBUG] 파싱 시작, 응답 길이: {len(response)}")
+        DebugManager.info(f"[EditBlock] 파싱 시작, 응답 길이: {len(response)}")
         
         # 여러 패턴으로 파일별 편집 블록 찾기
         patterns = [
@@ -34,17 +35,17 @@ class EditBlockCoder(BaseCoder):
             matches = re.findall(pattern, response, re.MULTILINE | re.DOTALL)
             file_matches.extend(matches)
             if matches:
-                print(f"[EditBlock DEBUG] 패턴 매치: {len(matches)}개 파일")
+                DebugManager.info(f"[EditBlock] 패턴 매치: {len(matches)}개 파일")
                 break
         
         if not file_matches:
-            print(f"[EditBlock DEBUG] 파일 패턴 매치 실패")
-            print(f"[EditBlock DEBUG] 응답 미리보기: {response[:200]}...")
+            DebugManager.info(f"[EditBlock] 파일 패턴 매치 실패")
+            DebugManager.info(f"[EditBlock] 응답 미리보기: {response[:200]}...")
             
             # 단순히 SEARCH/REPLACE 블록만 찾아보기
             simple_blocks = re.findall(r'<<<<<<< SEARCH(.*?)>>>>>>> REPLACE', response, re.DOTALL)
             if simple_blocks:
-                print(f"[EditBlock DEBUG] 단순 블록 {len(simple_blocks)}개 발견, 컨텍스트 파일에서 매칭 시도")
+                DebugManager.info(f"[EditBlock] 단순 블록 {len(simple_blocks)}개 발견, 컨텍스트 파일에서 매칭 시도")
                 # 첫 번째 컨텍스트 파일에 적용 시도
                 if context_files:
                     first_file = list(context_files.keys())[0]
@@ -52,7 +53,7 @@ class EditBlockCoder(BaseCoder):
             
             # SEARCH/REPLACE 실패 시 WholeFile 패턴으로 fallback 시도
             if not files:
-                print(f"[EditBlock DEBUG] SEARCH/REPLACE 실패, WholeFile 패턴 시도")
+                DebugManager.info(f"[EditBlock] SEARCH/REPLACE 실패, WholeFile 패턴 시도")
                 wholefile_patterns = [
                     r'^([^\n]+\.[a-zA-Z0-9]+)\s*\n```[a-zA-Z]*\n(.*?)\n```',  # 파일명 + 코드블록
                     r'```[a-zA-Z]*\n(.*?)\n```',  # 코드블록만
@@ -68,37 +69,51 @@ class EditBlockCoder(BaseCoder):
                             content = matches[0]
                             file_path = list(context_files.keys())[0] if context_files else 'unknown.txt'
                         
-                        print(f"[EditBlock DEBUG] WholeFile 패턴 매치: {file_path}")
+                        DebugManager.info(f"[EditBlock] WholeFile 패턴 매치: {file_path}")
                         # 컨텍스트에 있는 파일이면 사용, 없으면 첫 번째 파일 사용
                         if file_path in context_files:
                             target_file = file_path
                         elif context_files:
                             target_file = list(context_files.keys())[0]
-                            print(f"[EditBlock DEBUG] {file_path} -> {target_file} 로 매핑")
+                            DebugManager.info(f"[EditBlock] {file_path} -> {target_file} 로 매핑")
                         else:
                             continue
                             
                         files[target_file] = content.strip()
-                        print(f"[EditBlock DEBUG] WholeFile fallback 성공")
+                        DebugManager.info(f"[EditBlock] WholeFile fallback 성공")
                         break
             
             return files
         
         for file_path, blocks_content in file_matches:
             file_path = file_path.strip()
-            
-            if file_path not in context_files:
-                print(f"[EditBlock DEBUG] 컨텍스트에 없는 파일: {file_path}")
+
+            # 파일 경로를 여러 방식으로 매칭 시도
+            target_file = None
+            if file_path in context_files:
+                target_file = file_path
+            else:
+                # 파일명만으로 매칭 시도
+                filename = file_path.split('/')[-1]
+                for ctx_file in context_files.keys():
+                    if ctx_file.endswith(filename) or ctx_file.split('/')[-1] == filename:
+                        target_file = ctx_file
+                        DebugManager.info(f"[EditBlock] 파일명으로 매칭: {file_path} -> {target_file}")
+                        break
+
+            if not target_file:
+                DebugManager.info(f"[EditBlock] 컨텍스트에 없는 파일: {file_path}")
+                DebugManager.info(f"[EditBlock] 사용 가능한 파일들: {list(context_files.keys())}")
                 continue
-                
-            original_content = context_files[file_path]
+
+            original_content = context_files[target_file]
             modified_content = original_content
             
             # 각 SEARCH/REPLACE 블록 처리
             block_pattern = r'<<<<<<< SEARCH\s*\n(.*?)\n=======\s*\n(.*?)\n>>>>>>> REPLACE'
             blocks = re.findall(block_pattern, blocks_content, re.DOTALL)
             
-            print(f"[EditBlock DEBUG] {file_path}에서 {len(blocks)}개 블록 발견")
+            DebugManager.info(f"[EditBlock] {file_path}에서 {len(blocks)}개 블록 발견")
             
             for i, (search_block, replace_block) in enumerate(blocks):
                 search_block = search_block.rstrip()
@@ -107,10 +122,10 @@ class EditBlockCoder(BaseCoder):
                 # 검색 블록을 파일에서 찾기
                 if search_block in modified_content:
                     modified_content = modified_content.replace(search_block, replace_block, 1)
-                    print(f"[EditBlock DEBUG] 블록 {i+1} 교체 성공")
+                    DebugManager.info(f"[EditBlock] 블록 {i+1} 교체 성공")
                 else:
-                    print(f"[EditBlock DEBUG] 블록 {i+1} 찾기 실패:")
-                    print(f"[EditBlock DEBUG] 검색: '{search_block[:100]}...'")
+                    DebugManager.info(f"[EditBlock] 블록 {i+1} 찾기 실패:")
+                    DebugManager.info(f"[EditBlock] 검색: '{search_block[:100]}...'")
                     
                     # 유사한 텍스트 찾기 시도 (공백 차이 무시)
                     normalized_search = ' '.join(search_block.split())
@@ -119,10 +134,10 @@ class EditBlockCoder(BaseCoder):
                     for line_num, line in enumerate(content_lines):
                         normalized_line = ' '.join(line.split())
                         if normalized_search in normalized_line:
-                            print(f"[EditBlock DEBUG] 유사한 라인 {line_num}: '{line}'")
+                            DebugManager.info(f"[EditBlock] 유사한 라인 {line_num}: '{line}'")
                             break
             
-            files[file_path] = modified_content
+            files[target_file] = modified_content
         
         return files
     
@@ -156,7 +171,7 @@ class EditBlockCoder(BaseCoder):
                     # 매치된 부분을 교체
                     new_lines = content_lines[:i] + replace_lines + content_lines[i + len(search_lines):]
                     modified_content = '\n'.join(new_lines)
-                    print(f"[EditBlock DEBUG] 단순 블록 매칭 성공, {len(search_lines)}줄 -> {len(replace_lines)}줄")
+                    DebugManager.info(f"[EditBlock] 단순 블록 매칭 성공, {len(search_lines)}줄 -> {len(replace_lines)}줄")
                     break
         
         return modified_content

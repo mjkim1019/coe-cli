@@ -192,7 +192,11 @@ class FileEditor:
                          ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"히스토리 저장 실패: {e}")
-    
+
+    def get_operation_history(self) -> List[EditOperation]:
+        """편집 작업 히스토리 반환"""
+        return self.operations.copy()
+
     def _generate_change_id(self) -> str:
         """고유한 변경 ID 생성"""
         timestamp = datetime.now().isoformat()

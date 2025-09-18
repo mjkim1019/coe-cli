@@ -114,6 +114,33 @@ class FileManager:
         
         return messages
 
+    def _resolve_file_path(self, file_path: str) -> Optional[str]:
+        """파일 경로 해결 - 여러 위치에서 파일 검색"""
+        # 1. 주어진 경로 그대로 확인
+        if os.path.exists(file_path):
+            return file_path
+
+        # 2. 현재 디렉토리 기준으로 확인
+        current_dir_path = os.path.join(os.getcwd(), file_path)
+        if os.path.exists(current_dir_path):
+            return current_dir_path
+
+        # 3. tests/fixtures/ 디렉토리에서 확인
+        fixtures_path = os.path.join(os.getcwd(), 'tests', 'fixtures', file_path)
+        if os.path.exists(fixtures_path):
+            return fixtures_path
+
+        # 4. 파일명만으로 tests/fixtures/에서 확인
+        if '/' not in file_path:  # 파일명만 주어진 경우
+            filename = file_path
+            fixtures_dir = os.path.join(os.getcwd(), 'tests', 'fixtures')
+            if os.path.exists(fixtures_dir):
+                for root, dirs, files in os.walk(fixtures_dir):
+                    if filename in files:
+                        return os.path.join(root, filename)
+
+        return None
+
     def add_single_file(self, file_path: str) -> Dict:
         """단일 파일을 컨텍스트에 추가하고 분석 결과 반환"""
         result = {
@@ -121,11 +148,13 @@ class FileManager:
             'analysis': None,
             'file_type': 'unknown'
         }
-        
-        if os.path.exists(file_path):
+
+        # 파일 경로 해결
+        resolved_path = self._resolve_file_path(file_path)
+        if resolved_path:
             try:
                 # 바이너리 모드로 먼저 읽어 raw 데이터를 확보
-                with open(file_path, 'rb') as f:
+                with open(resolved_path, 'rb') as f:
                     raw_data = f.read()
 
                 # 1) 기본적으로 raw 데이터를 대상으로 인코딩 감지 시도
@@ -160,44 +189,42 @@ class FileManager:
                     content = raw_data.decode('utf-8', errors='replace')
                     used_encoding = 'utf-8 (fallback with replace)'
 
-                # 읽은 내용과 인코딩 정보를 저장
-                self.files[file_path] = content
+                # 읽은 내용과 인코딩 정보를 저장 (resolved_path를 키로 사용)
+                self.files[resolved_path] = content
                 line_count = len(content.splitlines())
                 char_count = len(content)
-                
+
                 # .c 파일인 경우 구조 정보 추가
-                if file_path.endswith('.c'):
+                if resolved_path.endswith('.c'):
                     result['file_type'] = 'c_file'
                     analysis = self._analyze_c_file_structure(content)
-                    self.c_file_info[file_path] = analysis
+                    self.c_file_info[resolved_path] = analysis
                     result['analysis'] = self._enhance_c_file_analysis(content, analysis)
-                    result['message'] = f"Read {file_path}, {line_count} lines"
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
                 # .sql 파일인 경우 구조 정보 추가
-                elif file_path.endswith('.sql'):
+                elif resolved_path.endswith('.sql'):
                     result['file_type'] = 'sql_file'
                     analysis = self._analyze_sql_file_structure(content)
-                    self.sql_file_info[file_path] = analysis
+                    self.sql_file_info[resolved_path] = analysis
                     result['analysis'] = analysis
-                    result['message'] = f"Read {file_path}, {line_count} lines"
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
                 # .h 파일인 경우 헤더 구조 분석
-                elif file_path.endswith('.h'):
+                elif resolved_path.endswith('.h'):
                     result['file_type'] = 'header_file'
-                    result['analysis'] = self._analyze_header_file_structure(content, file_path)
-                    result['message'] = f"Read {file_path}, {line_count} lines"
+                    result['analysis'] = self._analyze_header_file_structure(content, resolved_path)
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
                 # .xml 파일인 경우 UI 구조 분석
-                elif file_path.lower().endswith('.xml'):
+                elif resolved_path.lower().endswith('.xml'):
                     result['file_type'] = 'xml_file'
                     result['analysis'] = self._analyze_xml_file_structure(content)
-                    result['message'] = f"Read {file_path}, {line_count} lines"
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
                 else:
-                    result['message'] = f"Read {file_path}, {line_count} lines"
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
                     
             except Exception as e:
-                result['message'] = f"Error reading file {file_path}: {e}"
+                result['message'] = f"Error reading file {resolved_path}: {e}"
         else:
-            # 새 파일의 경우 빈 문자열로 초기화
-            self.files[file_path] = ""
-            result['message'] = f"Added new file (will be created on edit): {file_path}"
+            result['message'] = f"File not found: {file_path} (checked current dir, tests/fixtures/)"
             
         return result
 
@@ -468,6 +495,10 @@ class FileManager:
                 })
         
         return fields
+    
+    def has_file(self, file_path: str) -> bool:
+        """파일이 컨텍스트에 있는지 확인"""
+        return file_path in self.files
     
     def get_struct_info(self, file_path: str) -> Optional[Dict]:
         """특정 헤더 파일의 구조체 정보 반환"""

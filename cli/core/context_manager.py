@@ -1,9 +1,13 @@
 import importlib
+from .debug_manager import DebugManager
 
 class PromptBuilder:
     def __init__(self, task: str):
         self.task = task
         self.prompts = self._load_prompt_class()
+        # RepoMap 캐싱용 저장소
+        self._repo_map_cache = {}
+        self._cache_key = None
 
     def _load_prompt_class(self):
         try:
@@ -27,30 +31,50 @@ class PromptBuilder:
         # 1. Add the main system prompt
         messages.append({"role": "system", "content": self.prompts.main_system})
 
-        # 2. Add the file context
+        # 2. Add repository map (if manually generated)
+        repo_map = self._get_cached_repo_map()
+        if repo_map:
+            repo_prompt_content = f"Repository Structure Overview:\n```\n{repo_map}\n```\n\nUse this overview to better understand the codebase structure when answering questions."
+            messages.append({
+                "role": "system",
+                "content": repo_prompt_content
+            })
+            # RepoMap 프롬프트 내용 전체 출력
+            DebugManager.prompt_content("RepoMap이 프롬프트에 포함된 내용", repo_prompt_content)
+
+        # 3. Add the file context
         if file_context:
             messages.append({"role": "system", "content": self.prompts.files_content_prefix})
             messages.append({"role": "assistant", "content": self.prompts.files_content_assistant_reply})
 
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
-                
+
                 # 상세 구조 분석 정보 추가 (백그라운드에서 CoeAnalyzer 사용)
                 detailed_analysis = self._get_detailed_analysis(file_path, content)
                 if detailed_analysis:
                     file_str += f"\n\n{detailed_analysis}"
-                
+
                 messages.append({"role": "system", "content": file_str})
 
-        # 3. Add existing history
+        # 4. Add existing history
         messages.extend(history)
 
-        # 4. Add the final user request
+        # 5. Add the final user request
         messages.append({"role": "user", "content": user_input})
-        
+
         # 5. Add the system reminder at the end
         if self.prompts.system_reminder:
             messages.append({"role": "system", "content": self.prompts.system_reminder})
+
+        # 전체 프롬프트 구성 디버그 출력
+        DebugManager.prompt(f"전체 프롬프트 메시지 수: {len(messages)}")
+        for i, msg in enumerate(messages):
+            role = msg.get('role', 'unknown')
+            content = msg.get('content', '')
+            DebugManager.prompt(f"Message {i+1} [{role}]: {len(content)} chars")
+            if i < 5:  # 처음 5개 메시지만 내용도 출력
+                DebugManager.prompt_content(f"Message {i+1} [{role}] 내용", content, max_length=200)
 
         return messages
 
@@ -262,5 +286,127 @@ class PromptBuilder:
         structure_text += "- 바인드 변수를 통한 안전한 파라미터 처리\n"
         if sql_info.get('validity_patterns'):
             structure_text += "- 99991231 또는 99991231235959를 사용한 유효성 체크 (무한대 날짜)\n"
-        
+
         return structure_text
+
+    def _get_cached_repo_map(self):
+        """캐시된 레포맵 조회 (자동 생성 없음)"""
+        if self._repo_map_cache:
+            # 가장 최근 캐시된 레포맵 반환
+            latest_key = list(self._repo_map_cache.keys())[-1]
+            cached_repo_map = self._repo_map_cache[latest_key]
+            DebugManager.repo_map(f"✅ 캐시된 레포맵 사용 ({len(cached_repo_map)} chars)")
+            return cached_repo_map
+
+        DebugManager.repo_map("캐시된 레포맵 없음 - /repo 명령으로 생성 필요")
+        return None
+
+    def generate_repo_map_manually(self, target_files: list, file_manager=None):
+        """수동으로 레포맵 생성 (/repo 명령어용)"""
+        DebugManager.repo_map("수동 레포맵 생성 시작")
+        DebugManager.repo_map(f"- 대상 파일들: {target_files}")
+
+        try:
+            from cli.coders.repo_mapper import RepoMapper
+
+            # 파일 정보 수집
+            chat_files = target_files if target_files else None
+            other_files = []
+
+            # file_manager에서 추가 파일 정보 가져오기
+            if file_manager and hasattr(file_manager, 'files'):
+                other_files = list(file_manager.files.keys())
+
+            # RepoMapper로 맵 생성
+            repo_mapper = RepoMapper()
+            repo_map = repo_mapper.generate_map(
+                chat_files=chat_files,
+                other_files=other_files,
+                mentioned_fnames=target_files,
+                mentioned_idents=[]
+            )
+
+            if repo_map and len(repo_map.strip()) > 50:
+                # 캐시에 저장 (새로운 키로)
+                cache_key = self._generate_manual_cache_key(target_files)
+                self._repo_map_cache[cache_key] = repo_map
+                DebugManager.repo_map("✅ 수동 레포맵 생성 성공하여 캐시에 저장")
+                return repo_map
+            else:
+                DebugManager.repo_map(f"❌ 레포맵이 너무 짧음 ({len(repo_map) if repo_map else 0} chars)")
+                return None
+
+        except Exception as e:
+            DebugManager.error(f"수동 레포맵 생성 실패: {e}")
+            return None
+
+    def _generate_cache_key(self, file_context: dict, file_manager=None):
+        """캐시 키 생성 (파일들의 조합으로)"""
+        key_parts = []
+
+        # file_context의 파일들
+        if file_context:
+            sorted_files = sorted(file_context.keys())
+            key_parts.extend(sorted_files)
+
+        # file_manager의 파일들
+        if file_manager and hasattr(file_manager, 'files'):
+            fm_files = sorted(file_manager.files.keys())
+            key_parts.extend(fm_files)
+
+        # 중복 제거하고 정렬
+        unique_files = sorted(set(key_parts))
+        cache_key = "|".join(unique_files)
+
+        # 너무 긴 키는 해시로 축약
+        if len(cache_key) > 200:
+            import hashlib
+            cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+
+        return cache_key
+
+    def _generate_manual_cache_key(self, target_files: list):
+        """수동 생성용 캐시 키 생성"""
+        sorted_files = sorted(target_files) if target_files else []
+        cache_key = "MANUAL:" + "|".join(sorted_files)
+
+        # 너무 긴 키는 해시로 축약
+        if len(cache_key) > 200:
+            import hashlib
+            cache_key = "MANUAL:" + hashlib.md5(cache_key.encode()).hexdigest()
+
+        return cache_key
+
+    def clear_repo_map_cache(self):
+        """레포맵 캐시 클리어"""
+        self._repo_map_cache.clear()
+        DebugManager.repo_map("레포맵 캐시 클리어됨")
+
+    def get_repo_map_status(self):
+        """레포맵 상태 확인"""
+        if not self._repo_map_cache:
+            return "❌ 생성된 레포맵 없음"
+
+        cache_count = len(self._repo_map_cache)
+        latest_key = list(self._repo_map_cache.keys())[-1]
+        latest_size = len(self._repo_map_cache[latest_key])
+
+        return f"✅ 캐시된 레포맵: {cache_count}개, 최신 크기: {latest_size} chars"
+
+    def _extract_mentioned_files(self, text: str):
+        """텍스트에서 언급된 파일명 추출"""
+        import re
+        # 파일 패턴 (확장자가 있는 것들)
+        file_pattern = r'\b[\w/.-]+\.[a-zA-Z]{1,4}\b'
+        files = re.findall(file_pattern, text)
+        return [f for f in files if len(f) > 3 and '.' in f]
+
+    def _extract_mentioned_identifiers(self, text: str):
+        """텍스트에서 언급된 식별자 추출"""
+        import re
+        # 함수명이나 변수명 패턴 (언더스코어 포함)
+        ident_pattern = r'\b[a-zA-Z_]\w{2,}\b'
+        identifiers = re.findall(ident_pattern, text)
+        # 일반적인 단어 제외
+        excluded = {'파일', '함수', '변수', '코드', '프로그램', '시스템', '데이터', 'file', 'function', 'code', 'data'}
+        return [ident for ident in identifiers if ident.lower() not in excluded]

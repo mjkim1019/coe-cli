@@ -3,6 +3,9 @@ import os
 from prompt_toolkit.completion import Completer, Completion
 
 class PathCompleter(Completer):
+    def __init__(self):
+        self._file_cache = {}
+        
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
 
@@ -14,41 +17,21 @@ class PathCompleter(Completer):
         # The word to complete starts after the '@'
         word_to_complete = text[at_pos:]
         search_term = word_to_complete[1:]
-
-        # Find all files and directories, including relative path completion
-        project_paths = []
         
-        try:
-            # 1. Standard recursive search
-            all_paths = glob.glob('**/*', recursive=True)
-            standard_paths = [
-                f for f in all_paths
-                if '.git' not in f and '__pycache__' not in f and 'node_modules' not in f
-            ]
-            project_paths.extend(standard_paths)
-            
-            # 2. If search term contains path separators, try directory-specific search
-            if '/' in search_term:
-                dir_part = os.path.dirname(search_term)
-                if os.path.isdir(dir_part):
-                    # Search within the specific directory
-                    dir_specific = glob.glob(f"{dir_part}/**/*", recursive=True)
-                    project_paths.extend([f for f in dir_specific if f not in project_paths])
-            
-            # 3. Common project directories (higher priority)
-            common_dirs = ['tests', 'src', 'lib', 'actions', 'cli']
-            for common_dir in common_dirs:
-                if os.path.isdir(common_dir):
-                    common_paths = glob.glob(f"{common_dir}/**/*", recursive=True)
-                    project_paths.extend([f for f in common_paths if f not in project_paths])
-            
-        except Exception:
-            project_paths = [] # Handle potential errors during glob
+        # Show completions immediately when '@' is typed (no minimum length required)
+        # This allows users to see all available files when they type '@'
+
+        # Get cached or fresh file list
+        project_paths = self._get_project_files()
 
         # Filter paths based on the search term with smart matching
         matches = []
         
         for path in project_paths:
+            # Skip if file doesn't exist anymore
+            if not os.path.exists(path):
+                continue
+                
             path_lower = path.lower()
             search_lower = search_term.lower()
             
@@ -56,39 +39,68 @@ class PathCompleter(Completer):
             match_score = 0
             match_reason = ""
             
-            # 1. Exact filename match (highest priority)
+            # Get relative path and filename for better matching
             filename = os.path.basename(path)
-            if search_lower == filename.lower():
+            filename_lower = filename.lower()
+            
+            # If no search term (just '@'), show all files with priority-based scoring
+            if len(search_term) == 0:
+                # Give higher priority to common project files
+                if filename in ['main.py', 'app.py', 'index.js', 'main.c', 'README.md']:
+                    match_score = 70
+                    match_reason = "Important file"
+                elif path.startswith(('cli/', 'src/', 'actions/', 'lib/')):
+                    match_score = 60
+                    match_reason = "Project file"
+                else:
+                    match_score = 50
+                    match_reason = "All files"
+            # 1. Exact filename match (highest priority)
+            elif search_lower == filename_lower:
                 match_score = 100
                 match_reason = "Exact filename"
             # 2. Filename starts with search term
-            elif filename.lower().startswith(search_lower):
+            elif filename_lower.startswith(search_lower):
                 match_score = 90
                 match_reason = "Filename starts"
-            # 3. Filename contains search term
-            elif search_lower in filename.lower():
+            # 3. Partial path match (e.g., "cli/ma" matches "cli/main.py")
+            elif search_lower in path_lower and '/' in search_term:
+                if path_lower.startswith(search_lower):
+                    match_score = 85
+                    match_reason = "Path starts"
+                else:
+                    match_score = 75
+                    match_reason = "Path contains"
+            # 4. Filename contains search term
+            elif search_lower in filename_lower:
                 match_score = 80
                 match_reason = "Filename contains"
-            # 4. Path ends with search term (relative path matching)
+            # 5. Path ends with search term (relative path matching)
             elif path_lower.endswith(search_lower):
                 match_score = 70
                 match_reason = "Path ends with"
-            # 5. Any part of path contains search term
+            # 6. Any part of path contains search term
             elif search_lower in path_lower:
                 match_score = 60
                 match_reason = "Path contains"
-            # 6. No match
+            # 7. No match
             else:
                 continue
             
             # Determine if it's a file or directory
             if os.path.isfile(path):
                 file_type = "File"
-                # Boost score for certain file types
-                if path.endswith(('.c', '.h', '.sql', '.xml')):
+                # Boost score for project-relevant file types
+                if path.endswith(('.py', '.c', '.h', '.sql', '.xml', '.js', '.md')):
                     match_score += 5
+                # Extra boost for Python files in a Python project
+                if path.endswith('.py'):
+                    match_score += 3
             elif os.path.isdir(path):
                 file_type = "Directory"
+                # Slight boost for common project directories
+                if filename in ['src', 'lib', 'tests', 'actions', 'cli', 'core']:
+                    match_score += 2
             else:
                 continue  # Skip if neither file nor directory
             
@@ -99,16 +111,70 @@ class PathCompleter(Completer):
                 'reason': match_reason
             })
         
-        # Sort by score (highest first) and limit results
-        matches.sort(key=lambda x: x['score'], reverse=True)
+        # Sort by score (highest first), then by path length (shorter first)
+        matches.sort(key=lambda x: (-x['score'], len(x['path'])))
         
         # Yield completions
-        for match in matches[:20]:  # Limit to top 20 matches
-            display_meta = f"{match['type']} ({match['reason']})"
+        for match in matches[:15]:  # Limit to top 15 matches for better UX
+            display_meta = f"{match['type']} - {match['reason']}"
             
             yield Completion(
-                match['path'],                    # Text to be inserted
+                f"@{match['path']}",                # Text to be inserted (keep @ symbol)
                 start_position=-len(word_to_complete), # Replace from the '@'
-                display=match['path'],            # How it appears in the completion menu
-                display_meta=display_meta        # A little note next to the suggestion
+                display=match['path'],              # How it appears in the completion menu
+                display_meta=display_meta          # A little note next to the suggestion
             )
+    
+    def _get_project_files(self):
+        """Get project files with caching and improved filtering"""
+        cache_key = 'project_files'
+        
+        # Simple cache check (in production, you'd want timestamp-based invalidation)
+        if cache_key in self._file_cache:
+            return self._file_cache[cache_key]
+        
+        project_paths = set()
+        
+        try:
+            # 1. Get all files recursively
+            all_paths = glob.glob('**/*', recursive=True)
+            
+            # 2. Filter out unwanted paths
+            exclude_patterns = [
+                '.git/', '__pycache__/', 'node_modules/', '.venv/', 'venv/',
+                '.pytest_cache/', '.mypy_cache/', '*.pyc', '*.pyo',
+                '.DS_Store', '*.egg-info/', 'dist/', 'build/'
+            ]
+            
+            for path in all_paths:
+                # Skip if matches any exclude pattern
+                if any(pattern.rstrip('/') in path or path.endswith(pattern.lstrip('*')) 
+                      for pattern in exclude_patterns):
+                    continue
+                
+                # Only include files and directories that exist
+                if os.path.exists(path):
+                    project_paths.add(path)
+            
+            # 3. Add current directory files explicitly
+            try:
+                current_dir_files = [f for f in os.listdir('.') 
+                                   if os.path.isfile(f) and not f.startswith('.')]
+                project_paths.update(current_dir_files)
+            except (OSError, PermissionError):
+                pass
+            
+        except Exception:
+            # Fallback to basic file listing
+            try:
+                project_paths = set(glob.glob('*'))
+            except Exception:
+                project_paths = set()
+        
+        # Convert to sorted list for consistent ordering
+        result = sorted(list(project_paths))
+        
+        # Cache the result
+        self._file_cache[cache_key] = result
+        
+        return result
