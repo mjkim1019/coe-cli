@@ -24,6 +24,7 @@ venv/
 .coverage
 tests/fixtures/
 .poetry/lock
+templates/
 
 
 # 실행파일 및 Command history
