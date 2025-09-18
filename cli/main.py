@@ -446,13 +446,7 @@ def main():
 
             else:
                 # 의도 분석 제거됨 - 직접 ask 모드 처리
-                
-                # 파일 분석 요청 감지 및 안내
-                file_request = interactive_ui.detect_file_analysis_request(user_input)
-                if file_request['is_file_analysis_request']:
-                    if interactive_ui.show_file_not_loaded_guidance(file_request['detected_files'], file_manager):
-                        continue  # 안내 메시지를 보여주고 다음 입력 대기
-                
+
                 # 일반 사용자 입력 - AI에게 전달 (의도 분석 없이 바로 처리)
                 interactive_ui.display_separator()
 
