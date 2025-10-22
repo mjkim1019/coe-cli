@@ -70,7 +70,7 @@ python3 ./run.py`
 - `/apply` - 변경사항 적용
 - `/help` - 도움말 표시
 - `/exit` - CLI 종료
-- `/repo` - directory 내 여러 파일 구조 분석
+- `/repo` - 리포지토리 맵 생성
 
 
 ### 개발 예정 명령어
