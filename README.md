@@ -73,3 +73,4 @@ python3 cli/main.py
 
 - [제품 요구사항](swing_cli_prd.md) - 제품 개요, 목표, 성공 지표
 - [기능 명세서](docs/features_spec.md) - 상세 기능 설명 및 구현 계획
+- [개발 컨벤션](docs/development_convention.md) - Git 브랜치, 커밋, PR 등 개발 규칙
