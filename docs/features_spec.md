@@ -32,8 +32,8 @@ Ask 모드에서 구조 분석 요청 시 자동 실행 및 결과 캐싱
 #### 8. 튜토리얼 모드
 처음 사용자를 위한 대화형 가이드 (C/SQL/XML 파일 분석 실습)
 
-#### 9. MCP (Multi-step Code Planning)
-LLM이 복잡한 요청을 단계별로 분해하여 실행 + SSE 실시간 스트리밍
+#### 9. AI Task Orchestration
+LLM이 복잡한 요청을 실행 계획으로 분해하고, 사용자의 승인을 받아 순차적으로 실행합니다.
 
 #### 10. 프롬프트 캐싱
 OpenAI 프롬프트 캐싱을 통한 성능 최적화
@@ -441,7 +441,7 @@ class DebugManager:
   - 대화형 가이드 시스템
   - 실습 시나리오 구현
 
-- **P1 Multi-step Code Planning** (4주)
+- **P1 AI Task Orchestration** (4주)
   - 단계별 작업 분해 엔진
   - SSE 실시간 스트리밍
   - 복잡한 요청 처리 시스템

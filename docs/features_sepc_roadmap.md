@@ -76,7 +76,7 @@ coe init
 ### 📌 P1 (2025 Q4 목표)
 - 튜토리얼 모드 (대화형 가이드)
 - Text-to-SQL 기능
-- Plan & Execute 기능
+- AI Task Orchestration
 - AGENTS.md Rule 파일 자동 생성
 
 ### 📌 P2 (2026 Q1 목표)
