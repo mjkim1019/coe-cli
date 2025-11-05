@@ -1,4 +1,4 @@
-# Swing CLI 기능 명세서
+# SwingMate 기능 명세서
 
 ## 주요 기능 (우선순위별)
 
@@ -14,7 +14,7 @@ prompt_toolkit을 사용한 명령어 기반 인터페이스 및 자동완성
 C 파일(.c), XML 파일(.xml), SQL 파일(.sql) 전용 프롬프트 지원
 
 #### 4. 온디맨드 분석 ✅
-`/add` 시 기본 분석만 수행, 사용자가 "구조 분석" 요청 시 CoeAnalyzer 실행
+`/add` 시 기본 분석만 수행, 사용자가 "구조 분석" 요청 시 SWMateAnalyzer 실행
 
 #### 5. JSON 응답 처리 ✅
 json 형태 LLM 응답을 자동으로 테이블로 변환하여 표시
@@ -24,7 +24,7 @@ LLM 호출 과정의 투명성을 위한 상세 디버그 출력
 
 ### P0 (핵심 기능) - 진행 중
 
-#### 7. CoeAnalyzer 캐싱 시스템
+#### 7. SWMateAnalyzer 캐싱 시스템
 Ask 모드에서 구조 분석 요청 시 자동 실행 및 결과 캐싱
 
 ### P1 (중요 기능) - 2025년 Q1 목표
@@ -169,7 +169,7 @@ class ModelProtocolContext:
 
 ### 튜토리얼 모드 (개발 예정)
 
-**목적**: 처음 사용하는 사용자가 실제 파일로 Swing CLI의 주요 기능을 체험할 수 있는 대화형 가이드
+**목적**: 처음 사용하는 사용자가 실제 파일로 SwingMate의 주요 기능을 체험할 수 있는 대화형 가이드
 
 **기능**:
 - `test_with_fixtures.py` 기반의 실습 시나리오
@@ -251,7 +251,7 @@ class FileWatcher:
 
 **주석 형태**:
 ```c
-// [SWING-CLI] 2024-01-15 14:30:25 by user123
+// [SWING-MATE] 2024-01-15 14:30:25 by user123
 // [변경이유] 입력 검증 로직 강화를 위해 NULL 체크 추가
 if (input_data == NULL) {
     return ERROR_INVALID_INPUT;
@@ -277,28 +277,28 @@ class EditGuardRail:
 
 ## 다음 세션 우선 작업 항목
 
-### CoeAnalyzer 캐싱 시스템 구현
+### SWMateAnalyzer 캐싱 시스템 구현
 
 #### 구현 계획 단계:
 
-**1단계: CoeAnalyzer 캐싱 시스템 설계 ✅**
+**1단계: SWMateAnalyzer 캐싱 시스템 설계 ✅**
 - **목표**: Ask 모드에서 사용자가 구조 분석 요청 시 실행하고 결과 캐싱
 - **캐싱 범위**: RepoMap과 유사한 방식으로 파일별 분석 결과 저장
 - **트리거**: "구조 분석", "분석해줘", "어떤 파일이야" 등의 키워드 감지
 
-**2단계: Context Manager에 CoeAnalyzer 캐싱 추가**
+**2단계: Context Manager에 SWMateAnalyzer 캐싱 추가**
 - **파일**: `cli/core/context_manager.py`
 - **기능 추가**:
   ```python
   class PromptBuilder:
       def __init__(self, task: str):
-          self._coe_analysis_cache = {}  # 파일별 CoeAnalyzer 결과 캐싱
+          self._swmate_analysis_cache = {}  # 파일별 SWMateAnalyzer 결과 캐싱
 
-      def get_cached_coe_analysis(self, file_path: str) -> Optional[Dict]:
-          """캐싱된 CoeAnalyzer 분석 결과 반환"""
+      def get_cached_swmate_analysis(self, file_path: str) -> Optional[Dict]:
+          """캐싱된 SWMateAnalyzer 분석 결과 반환"""
 
-      def perform_coe_analysis_on_demand(self, file_path: str, file_manager) -> Dict:
-          """요청 시에만 CoeAnalyzer 실행하고 캐싱"""
+      def perform_swmate_analysis_on_demand(self, file_path: str, file_manager) -> Dict:
+          """요청 시에만 SWMateAnalyzer 실행하고 캐싱"""
   ```
 
 **3단계: Ask 모드 키워드 감지 시스템**
@@ -318,35 +318,36 @@ class EditGuardRail:
   1. 사용자 입력에서 구조 분석 키워드 감지
   2. 대상 파일 추출 (예: "ORDSS04S2050T01.c 구조 분석해줘")
   3. 해당 파일이 컨텍스트에 있는지 확인
-  4. CoeAnalyzer 실행 (캐시 확인 후 필요시에만)
+  4. SWMateAnalyzer 실행 (캐시 확인 후 필요시에만)
   5. 분석 결과를 프롬프트에 포함하여 LLM 호출
 
-**5단계: 프롬프트에 CoeAnalyzer 결과 통합**
+**5단계: 프롬프트에 SWMateAnalyzer 결과 통합**
 - **파일**: `cli/core/context_manager.py`의 `build()` 메서드
 - **기능**:
   ```python
   def build(self, user_input: str, file_context: Dict, history: List, file_manager=None) -> List:
       # 기존 로직...
 
-      # CoeAnalyzer 결과가 있으면 프롬프트에 추가
-      coe_analysis = self._get_relevant_coe_analysis(user_input, file_context)
-      if coe_analysis:
-          for file_path, analysis in coe_analysis.items():
-              analysis_str = f"File Structure Analysis for {file_path}:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}"
+      # SWMateAnalyzer 결과가 있으면 프롬프트에 추가
+      swmate_analysis = self._get_relevant_swmate_analysis(user_input, file_context)
+      if swmate_analysis:
+          for file_path, analysis in swmate_analysis.items():
+              analysis_str = f"File Structure Analysis for {file_path}:
+{json.dumps(analysis, ensure_ascii=False, indent=2)}"
               messages.append({"role": "system", "content": analysis_str})
   ```
 
 **6단계: 디버그 출력 및 캐시 상태 확인**
-- **기능**: 어떤 파일에 대해 CoeAnalyzer 결과가 캐싱되어 있는지 확인
-- **명령어**: `/coe-cache` 또는 기존 `/files` 명령어에 통합
-- **디버그**: DebugManager에 CoeAnalyzer 관련 로깅 추가
+- **기능**: 어떤 파일에 대해 SWMateAnalyzer 결과가 캐싱되어 있는지 확인
+- **명령어**: `/swmate-cache` 또는 기존 `/files` 명령어에 통합
+- **디버그**: DebugManager에 SWMateAnalyzer 관련 로깅 추가
 
-#### CoeAnalyzer 캐싱 구조:
+#### SWMateAnalyzer 캐싱 구조:
 ```python
 # context_manager.py
 class PromptBuilder:
     def __init__(self, task: str):
-        self._coe_analysis_cache = {
+        self._swmate_analysis_cache = {
             "file_path": {
                 "timestamp": "2024-xx-xx",
                 "analysis": {
@@ -364,11 +365,11 @@ class PromptBuilder:
 - `cli/core/context_manager.py` (주요 캐싱 로직)
 - `cli/main.py` (Ask 모드에서 분석 요청 처리)
 - `cli/ui/interactive.py` (키워드 감지 함수)
-- `cli/core/debug_manager.py` (CoeAnalyzer 디버그 출력)
+- `cli/core/debug_manager.py` (SWMateAnalyzer 디버그 출력)
 
 #### 완료 조건:
-- `/add` 시에는 CoeAnalyzer 실행하지 않음 (성능 개선)
-- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 CoeAnalyzer 실행
+- `/add` 시에는 SWMateAnalyzer 실행하지 않음 (성능 개선)
+- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 SWMateAnalyzer 실행
 - 분석 결과가 프롬프트에 포함되어 더 정확한 답변 제공
 - 캐싱으로 동일 파일 재분석 방지
 - RepoMap과 유사한 방식의 일관된 캐싱 시스템
@@ -428,7 +429,7 @@ class DebugManager:
 ## 개발 로드맵
 
 ### 2025년 Q4 (현재 진행 중)
-- **P0 CoeAnalyzer 캐싱 시스템** (1주)
+- **P0 SWMateAnalyzer 캐싱 시스템** (1주)
   - Ask 모드 키워드 감지 시스템
   - Context Manager 캐싱 로직 구현
   - 성능 최적화 및 디버그 출력
