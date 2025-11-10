@@ -11,6 +11,7 @@ class DebugManager:
 
     색깔 코드:
     - RepoMap: cyan
+    - SWMateAnalyzer: bright_yellow
     - FileAnalysis: yellow
     - Context: blue
     - Error: red
@@ -42,6 +43,13 @@ class DebugManager:
         if cls._debug_enabled:
             console = cls._get_console()
             console.print(f"[cyan dim][RepoMap DEBUG][/cyan dim] [dim]{message}[/dim]")
+
+    @classmethod
+    def swmate_analyzer(cls, message: str):
+        """SWMateAnalyzer 관련 디버그 출력 (bright_yellow)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[bright_yellow dim][SWMateAnalyzer DEBUG][/bright_yellow dim] [dim]{message}[/dim]")
 
     @classmethod
     def file_analysis(cls, message: str):

@@ -2,10 +2,14 @@
 Interactive UI module - Handles user interactions and mode switching
 """
 
+from click import File
 from rich.console import Console
 from typing import Dict, List, Any
 import re
 
+from actions.file_manager import FileManager
+
+analysis_keywords = ['구조 분석', '분석해줘', '어떤 파일', '파일 구조', '코드 분석']
 
 class InteractiveUI:
     """Handles interactive UI elements and mode switching"""
@@ -107,6 +111,7 @@ class InteractiveUI:
 [yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
 [yellow]/repo[/yellow] <file1> <file2> ... - 지정한 파일들로 Repository Map 생성 (질문 시 자동 포함)
 [yellow]/repo[/yellow] - 현재 Repository Map 상태 확인
+[yellow]/swmate-cache status[/yellow] - SWMateAnalyzer 캐시 상태 확인
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 
@@ -174,6 +179,7 @@ class InteractiveUI:
                 f"[red]• 알 수 없는 명령어: '{command_part}'[/red]\n\n"
                 f"[white]• 사용 가능한 명령어:[/white]\n"
                 f"[dim white]• 파일 관리: /add, /files, /tree, /analyze, /info, /clear[/dim white]\n"
+                f"[dim white]• 분석 도구: /repo, /swmate-cache[/dim white]\n"
                 f"[dim white]• 모드 전환: /ask, /edit[/dim white]\n"
                 f"[dim white]• 편집 기능: /preview, /apply, /history, /rollback, /debug[/dim white]\n"
                 f"[dim white]• 세션 관리: /session, /session-reset[/dim white]\n"
@@ -217,7 +223,6 @@ class InteractiveUI:
             r'@([a-zA-Z0-9_/\\.-]+)',                # @로 시작하는 파일 참조
         ]
         
-        analysis_keywords = ['분석', '분석해', '봐줘', 'analyze', '설명해', '알려줘']
         
         detected_files = []
         for pattern in file_patterns:
