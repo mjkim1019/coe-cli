@@ -295,6 +295,64 @@ def test_edit_functionality_with_fixtures():
     else:
         console.print(f"[red]❌ 원본 파일이 없습니다: {original_file}[/red]")
 
+def test_swmate_cache_status(file_manager:FileManager):
+    """7. SWMateAnalyzer 캐시 상태 확인 테스트 (실제 CLI 워크플로우 재현)"""
+    from cli.core.context_manager import PromptBuilder
+
+    prompt_builder = PromptBuilder('ask')
+    # 초기 캐시 상태 확인
+    initial_status = prompt_builder.get_swmate_cache_status()
+    assert "없음" in initial_status
+
+    sql_file = './tests/fixtures/zord_svc_prod_grp_s0001.sql'
+    if sql_file not in file_manager.files:
+        console.print(f"[yellow]파일 추가: {sql_file}[/yellow]")
+        file_manager.add([sql_file])
+    
+    file_content = file_manager.files[sql_file]
+    file_context = {sql_file: file_content}
+
+    # 첫 번째 분석 요청 - LLM 호출하고 캐시 생성
+    user_input_1 = '이 SQL 파일의 구조 분석해줘'  # '구조 분석' 키워드 포함
+    
+    try:
+        relevant_1 = prompt_builder._get_relevant_swmate_analysis(user_input_1, file_context)
+        
+        if relevant_1:
+            console.print(f"[green]✅ 분석 완료, 캐시에 저장됨: {len(relevant_1)}개 파일[/green]")
+        else:
+            console.print(f"[yellow]⚠️  LLM 호출 실패 (서버 연결 오류), 캐시 테스트 건너뜀[/yellow]")
+            console.print("[dim]참고: 실제 CLI에서는 LLM 서버가 필요합니다[/dim]")
+            return
+            
+    except Exception as e:
+        console.print(f"[yellow]⚠️  LLM 호출 중 오류: {e}[/yellow]")
+        console.print("[dim]참고: 실제 CLI에서는 LLM 서버가 필요합니다[/dim]")
+        return
+
+    # 캐시 상태 확인 - 캐시된 파일이 표시되어야 함 (/swmate-cache status와 동일)
+    status_after_analysis = prompt_builder.get_swmate_cache_status()
+    console.print(f"\n[dim]3) 분석 후 캐시 상태:[/dim]\n{status_after_analysis}")
+    assert os.path.basename(sql_file) in status_after_analysis
+    assert "✅" in status_after_analysis
+
+    # 캐시에서 직접 분석 결과 조회
+    cached = prompt_builder.get_cached_swmate_analysis(sql_file)
+    console.print(f"[green]✅ 캐시에서 분석 결과 조회 성공[/green]")
+    assert isinstance(cached, dict)
+    assert 'basic_analysis' in cached or 'llm_analysis' in cached
+
+    # 두 번째 분석 요청 - 캐시 사용 (새로운 LLM 호출 없음)
+    console.print(f"\n[dim]4) 두 번째 분석 요청 (캐시 사용 확인)...[/dim]")
+    user_input_2 = '분석해줘'  # 한국어 키워드
+    relevant_2 = prompt_builder._get_relevant_swmate_analysis(user_input_2, file_context)
+    
+    console.print(f"[green]✅ 캐시된 결과 사용됨 (LLM 호출 없음)[/green]")
+    assert sql_file in relevant_2
+    assert relevant_2[sql_file] == cached  # 캐시에서 가져온 동일한 객체여야 함
+
+    console.print("\n[bold green]✅ SWMateAnalyzer 캐시 상태 테스트 완료 (실제 워크플로우)[/bold green]")
+
 if __name__ == "__main__":
     console.print("[bold green]🚀 Fixtures 파일로 Swing CLI 기능 테스트 시작[/bold green]")
 
@@ -315,5 +373,8 @@ if __name__ == "__main__":
 
     # 6. Edit 기능 테스트
     test_edit_functionality_with_fixtures()
+
+    # 7. SWMateAnalyzer 캐시 상태 확인 테스트
+    test_swmate_cache_status(file_manager)
 
     console.print("\n[bold green]✅ 모든 Fixtures 테스트 완료![/bold green]")

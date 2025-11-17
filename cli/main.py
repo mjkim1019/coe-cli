@@ -64,7 +64,9 @@ def main():
     edit_strategy = 'whole'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
     last_user_request = None  # 마지막 사용자 요청 저장
-    current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더
+    current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더 
+    # 영구 PromptBuilder 인스턴스 (캐시 유지용)
+    prompt_builder = PromptBuilder('ask')
 
     # 웰컴 메시지
     interactive_ui.display_welcome_banner(task)
@@ -82,15 +84,9 @@ def main():
                 continue
 
             elif user_input.strip().lower().startswith('/repo'):
-                # PromptBuilder import를 블록 밖으로 이동
-                from cli.core.context_manager import PromptBuilder
-
                 parts = user_input.strip().split()
                 if len(parts) > 1:
                     target_files = [p.replace('@', '') for p in parts[1:]]
-
-                    # PromptBuilder 인스턴스 생성 (ask용)
-                    prompt_builder = PromptBuilder('ask')
 
                     # 수동으로 레포맵 생성
                     repo_map = prompt_builder.generate_repo_map_manually(target_files, file_manager)
@@ -102,11 +98,20 @@ def main():
                         console.print("[red]•  RepoMap 생성에 실패했습니다.[/red]")
                 else:
                     # 상태 확인
-                    prompt_builder = PromptBuilder('ask')
                     status = prompt_builder.get_repo_map_status()
                     console.print(f"[cyan]•  RepoMap 상태: {status}[/cyan]")
                     console.print("[dim]사용법: /repo <파일1> <파일2> ... 또는 /repo (상태 확인)[/dim]")
                 continue
+
+            elif user_input.strip().lower().startswith('/swmate-cache'):
+                # SWMateAnalyzer 캐시 상태 확인
+                parts = user_input.strip().split()
+                if len(parts) == 1 or (len(parts) == 2 and parts[1] == 'status'):
+                    # 캐시 상태 확인
+                    status = prompt_builder.get_swmate_cache_status()
+                    console.print(f"[cyan]•  SWMateAnalyzer 캐시 상태:[/cyan]")
+                    console.print(status)
+                    continue
 
             elif user_input.strip().lower().startswith('/add '):
                 parts = user_input.strip().split()
@@ -450,8 +455,8 @@ def main():
                 # 일반 사용자 입력 - AI에게 전달 (의도 분석 없이 바로 처리)
                 interactive_ui.display_separator()
 
-            # Build the prompt using MCP-integrated PromptBuilder
-            prompt_builder = mcp_integration.create_prompt_builder(task)
+            # Build the prompt using persistent PromptBuilder (캐시 유지)
+            prompt_builder.set_task(task)  # task 모드만 변경 (캐시는 유지)
             messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
             # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
