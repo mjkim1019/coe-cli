@@ -27,6 +27,7 @@ from cli.ui.components import SwingUIComponents
 from cli.ui.panels import UIPanels
 from cli.ui.formatters import ResponseFormatter
 from cli.ui.interactive import InteractiveUI
+from cli.ui.tutorial import TutorialMode
 
 # 편집 전략 import
 from cli.coders.base_coder import registry
@@ -83,6 +84,33 @@ def main():
                 console.print(interactive_ui.display_help_panel())
                 continue
 
+            elif user_input.strip().lower() == '/tutorial':
+                # Start tutorial mode
+                console.print()
+                console.print(Panel(
+                    "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
+                    "실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 학습합니다.",
+                    title="🎓 튜토리얼 모드",
+                    border_style="cyan"
+                ))
+                
+                try:
+                    tutorial = TutorialMode(
+                        console=console,
+                        file_manager=file_manager,
+                        file_editor=file_editor,
+                        llm_service=llm_service,
+                        ui_components=ui,
+                        panels=panels,
+                        interactive_ui=interactive_ui,
+                        session=session
+                    )
+                    tutorial.start()
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"튜토리얼 실행 중 오류: {e}"))
+                
+                continue
+
             elif user_input.strip().lower().startswith('/repo'):
                 parts = user_input.strip().split()
                 if len(parts) > 1:
@@ -111,7 +139,9 @@ def main():
                     status = prompt_builder.get_swmate_cache_status()
                     console.print(f"[cyan]•  SWMateAnalyzer 캐시 상태:[/cyan]")
                     console.print(status)
-                    continue
+                else:
+                    console.print("[dim]사용법: /swmate-cache status[/dim]")
+                continue
 
             elif user_input.strip().lower().startswith('/add '):
                 parts = user_input.strip().split()
@@ -440,7 +470,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
