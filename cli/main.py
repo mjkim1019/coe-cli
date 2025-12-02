@@ -86,13 +86,7 @@ def main():
 
             elif user_input.strip().lower() == '/tutorial':
                 # Start tutorial mode
-                console.print()
-                console.print(Panel(
-                    "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
-                    "실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 학습합니다.",
-                    title="🎓 튜토리얼 모드",
-                    border_style="cyan"
-                ))
+                console.print(interactive_ui.display_tutorial_start_panel())
                 
                 try:
                     tutorial = TutorialMode(

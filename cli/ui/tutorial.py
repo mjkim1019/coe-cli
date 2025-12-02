@@ -29,7 +29,7 @@ class TutorialMode:
         self.session = session
         self.tutorial_dir = None
         self.current_step = 0
-        self.total_steps = 8  # 환영(0) + 7단계(1-7) + 완료(8) = 9개 스텝, 루프는 0-7까지 실행
+        self.total_steps = 8
         
         # 튜토리얼 단계 설정
         self.steps = [

@@ -98,6 +98,17 @@ class InteractiveUI:
         self.console.print(welcome_msg)
         self.console.print()
 
+    def display_tutorial_start_panel(self):
+        """튜토리얼 시작 패널 표시"""
+        from rich.panel import Panel
+        
+        return Panel(
+            "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
+            "실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 학습합니다.",
+            title="🎓 튜토리얼 모드",
+            border_style="cyan"
+        )
+
     def display_help_panel(self):
         """도움말 패널 - 아이콘 없이 dots 사용"""
         from rich.panel import Panel
