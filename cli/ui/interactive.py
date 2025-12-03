@@ -98,6 +98,17 @@ class InteractiveUI:
         self.console.print(welcome_msg)
         self.console.print()
 
+    def display_tutorial_start_panel(self):
+        """튜토리얼 시작 패널 표시"""
+        from rich.panel import Panel
+        
+        return Panel(
+            "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
+            "실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 학습합니다.",
+            title="🎓 튜토리얼 모드",
+            border_style="cyan"
+        )
+
     def display_help_panel(self):
         """도움말 패널 - 아이콘 없이 dots 사용"""
         from rich.panel import Panel
@@ -105,6 +116,7 @@ class InteractiveUI:
         help_text = """
 [bold cyan]•  사용 가능한 명령어:[/bold cyan]
 
+[yellow]/tutorial[/yellow] - 단계별 튜토리얼 시작 (처음 사용자 권장!)
 [yellow]/add[/yellow] <file1|dir1> <file2|dir2> ... - 파일 또는 디렉토리를 재귀적으로 세션에 추가
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
@@ -149,6 +161,7 @@ class InteractiveUI:
 
 
 [dim]💡 팁: .c 파일과 .sql 파일은 자동으로 구조를 분석합니다![/dim]
+[dim]🎓 처음 사용하시나요? /tutorial 명령으로 실습하세요![/dim]
 
 [bold cyan]•  키보드 단축키:[/bold cyan]
 [dim]Ctrl+C[/dim] - 현재 작업 중단
@@ -172,12 +185,13 @@ class InteractiveUI:
         from rich.panel import Panel
         
         known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
-                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
+                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial']
         
         if command_part not in [cmd.lower() for cmd in known_commands]:
             error_panel = Panel(
                 f"[red]• 알 수 없는 명령어: '{command_part}'[/red]\n\n"
                 f"[white]• 사용 가능한 명령어:[/white]\n"
+                f"[dim white]• 튜토리얼: /tutorial[/dim white]\n"
                 f"[dim white]• 파일 관리: /add, /files, /tree, /analyze, /info, /clear[/dim white]\n"
                 f"[dim white]• 분석 도구: /repo, /swmate-cache[/dim white]\n"
                 f"[dim white]• 모드 전환: /ask, /edit[/dim white]\n"
