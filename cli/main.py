@@ -114,7 +114,7 @@ def main():
                     console.print(f"[cyan]•  SWMateAnalyzer 캐시 상태:[/cyan]")
                     console.print(status)
                     continue
-            
+                
             elif user_input.strip().lower() == 'swmate init':
                 # 프로젝트 초기화 - AGENTS.md 문서 생성
                 document_generator.init_project()
@@ -447,7 +447,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
