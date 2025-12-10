@@ -28,6 +28,7 @@ from cli.ui.components import SwingUIComponents
 from cli.ui.panels import UIPanels
 from cli.ui.formatters import ResponseFormatter
 from cli.ui.interactive import InteractiveUI
+from cli.ui.tutorial import TutorialMode
 
 # 편집 전략 import
 from cli.coders.base_coder import registry
@@ -83,6 +84,27 @@ def main():
 
             elif user_input.strip().lower() == '/help':
                 console.print(interactive_ui.display_help_panel())
+                continue
+
+            elif user_input.strip().lower() == '/tutorial':
+                # Start tutorial mode
+                console.print(interactive_ui.display_tutorial_start_panel())
+                
+                try:
+                    tutorial = TutorialMode(
+                        console=console,
+                        file_manager=file_manager,
+                        file_editor=file_editor,
+                        llm_service=llm_service,
+                        ui_components=ui,
+                        panels=panels,
+                        interactive_ui=interactive_ui,
+                        session=session
+                    )
+                    tutorial.start()
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"튜토리얼 실행 중 오류: {e}"))
+                
                 continue
 
             elif user_input.strip().lower().startswith('/repo'):
