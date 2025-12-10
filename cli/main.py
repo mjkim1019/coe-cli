@@ -14,6 +14,7 @@ from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
 from actions.file_editor import FileEditor
 from actions.template_manager import TemplateManager
+from actions.document_generator import DocumentGenerator
 # AI 템플릿 어시스턴트 제거됨 (단순한 /new 명령어로 대체)
 #from actions.ai_template_assistant import AITemplateAssistant
 from cli.completer import PathCompleter
@@ -47,6 +48,7 @@ def main():
     file_editor = FileEditor()
     llm_service = LLMService()
     template_manager = TemplateManager(llm_service=llm_service)
+    document_generator = DocumentGenerator(console=console)
     # AI 어시스턴트 제거됨
     chat_history = []
     
@@ -133,8 +135,11 @@ def main():
                     status = prompt_builder.get_swmate_cache_status()
                     console.print(f"[cyan]•  SWMateAnalyzer 캐시 상태:[/cyan]")
                     console.print(status)
-                else:
-                    console.print("[dim]사용법: /swmate-cache status[/dim]")
+                    continue
+                
+            elif user_input.strip().lower() == 'swmate init':
+                # 프로젝트 초기화 - AGENTS.md 문서 생성
+                document_generator.init_project()
                 continue
 
             elif user_input.strip().lower().startswith('/add '):

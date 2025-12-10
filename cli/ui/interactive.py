@@ -124,6 +124,7 @@ class InteractiveUI:
 [yellow]/repo[/yellow] <file1> <file2> ... - 지정한 파일들로 Repository Map 생성 (질문 시 자동 포함)
 [yellow]/repo[/yellow] - 현재 Repository Map 상태 확인
 [yellow]/swmate-cache status[/yellow] - SWMateAnalyzer 캐시 상태 확인
+[yellow]swmate init[/yellow] - AGENTS.md 문서로 프로젝트 초기화
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 
