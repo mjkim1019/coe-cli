@@ -153,6 +153,12 @@ class InteractiveUI:
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
 
 
+[bold cyan]•  AI 작업 자동화:[/bold cyan]
+
+[yellow]/architect[/yellow] "자연어 요청" - AI 작업 오케스트레이션 (복잡한 작업 자동 분해 및 실행)
+[yellow]/resume[/yellow] - 저장된 계획 목록 보기 및 재실행
+
+
 [bold cyan]•  편집 전략 예시:[/bold cyan]
 
 [yellow]/edit udiff[/yellow] - "print 오타 수정해줘" (정밀 수정)

@@ -1,0 +1,60 @@
+plan_id: '20251211_135644'
+description: '"고객 정보를 분석해서 월별 구독 통계 리포트 만들어줘"'
+created_at: '2025-12-11T13:56:44.815073'
+status: failed
+steps:
+- step_number: 1
+  command: /add
+  description: Add the customer_schema.sql file for analysis.
+  parameters:
+    file: customer_schema.sql
+  reason: The customer schema is necessary to understand the structure of the customer
+    information, which is essential for analyzing monthly subscription statistics.
+  status: failed
+  output: null
+  error: Failed to add files
+- step_number: 2
+  command: /ask
+  description: Inquire about the specific metrics or information the user wants in
+    the monthly subscription report.
+  parameters: {}
+  reason: Understanding the specific details the user wants in the report will help
+    tailor the analysis to their needs.
+  status: pending
+  output: null
+  error: null
+- step_number: 3
+  command: /exec
+  description: Execute SQL queries to extract monthly subscription data based on the
+    customer information.
+  parameters:
+    query: SELECT MONTH(subscription_date) AS month, COUNT(*) AS subscription_count
+      FROM subscriptions GROUP BY MONTH(subscription_date);
+  reason: Extracting the monthly subscription data is a critical step to creating
+    the desired report.
+  status: pending
+  output: null
+  error: null
+- step_number: 4
+  command: /edit
+  description: Create a report file (e.g., monthly_subscription_report.csv) to save
+    the extracted data.
+  parameters:
+    file: monthly_subscription_report.csv
+  reason: A report file is needed to present the analyzed monthly subscription statistics
+    in an accessible format.
+  status: pending
+  output: null
+  error: null
+- step_number: 5
+  command: /test
+  description: Validate the report by checking if the report file has been created
+    and contains the expected data.
+  parameters:
+    file: monthly_subscription_report.csv
+  reason: Testing ensures that the report file was generated correctly and contains
+    the accurate subscription statistics.
+  status: pending
+  output: null
+  error: null
+results: []
