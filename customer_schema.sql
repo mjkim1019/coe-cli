@@ -1,0 +1,1 @@
+SELECT * FROM customers WHERE subscription_date <= NOW() - INTERVAL '5 years';

@@ -24,10 +24,13 @@ from cli.core.mcp_integration import MCPIntegration
 from cli.core.debug_manager import DebugManager
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Confirm
 from cli.ui.components import SwingUIComponents
 from cli.ui.panels import UIPanels
 from cli.ui.formatters import ResponseFormatter
 from cli.ui.interactive import InteractiveUI
+from cli.ui.tutorial import TutorialMode
+from cli.core.architect_mode import ArchitectMode
 
 # 편집 전략 import
 from cli.coders.base_coder import registry
@@ -69,6 +72,9 @@ def main():
     current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더 
     # 영구 PromptBuilder 인스턴스 (캐시 유지용)
     prompt_builder = PromptBuilder('ask')
+    
+    # Architect Mode 초기화 (템플릿 매니저 포함)
+    architect_mode = ArchitectMode(console, llm_service, file_manager, file_editor, session, template_manager)
 
     # 웰컴 메시지
     interactive_ui.display_welcome_banner(task)
@@ -83,6 +89,99 @@ def main():
 
             elif user_input.strip().lower() == '/help':
                 console.print(interactive_ui.display_help_panel())
+                continue
+
+            elif user_input.strip().lower() == '/tutorial':
+                # Start tutorial mode
+                console.print(interactive_ui.display_tutorial_start_panel())
+                
+                try:
+                    tutorial = TutorialMode(
+                        console=console,
+                        file_manager=file_manager,
+                        file_editor=file_editor,
+                        llm_service=llm_service,
+                        ui_components=ui,
+                        panels=panels,
+                        interactive_ui=interactive_ui,
+                        session=session
+                    )
+                    tutorial.start()
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"튜토리얼 실행 중 오류: {e}"))
+                
+                continue
+
+            elif user_input.strip().lower().startswith('/architect '):
+                # Architect Mode - AI 작업 오케스트레이션
+                # 사용자 요청 추출 (/architect 뒤의 모든 내용)
+                request = user_input.strip()[11:].strip()  # '/architect ' 접두사 제거
+                
+                if not request:
+                    console.print(panels.create_error_panel("사용법: /architect \"자연어 요청\"\n예: /architect \"유선 회선 기준으로 유무선 결합 가입년수 합산값 조회하는 쿼리 개발해줘\""))
+                    continue
+                
+                try:
+                    # Architect 모드 실행
+                    plan = architect_mode.run(request)
+                    
+                    if plan:
+                        console.print(f"\n[bold green]✅ Architect Mode 완료![/bold green]")
+                        console.print(f"[dim]계획 ID: {plan.plan_id}[/dim]")
+                        console.print(f"[dim]상태: {plan.status}[/dim]")
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"Architect Mode 실행 중 오류: {e}"))
+                
+                continue
+
+            elif user_input.strip().lower() == '/resume':
+                # Resume - List and resume saved plans
+                try:
+                    plan_ids = architect_mode.list_plans()
+                    
+                    if not plan_ids:
+                        console.print("[yellow]저장된 계획이 없습니다.[/yellow]")
+                        continue
+                    
+                    # Show available plans
+                    console.print(Panel(
+                        "[bold cyan]📋 저장된 계획 목록[/bold cyan]",
+                        border_style="cyan"
+                    ))
+                    
+                    for idx, plan_id in enumerate(plan_ids[:10], 1):
+                        console.print(f"  {idx}. [cyan]{plan_id}[/cyan]")
+                    
+                    if len(plan_ids) > 10:
+                        console.print(f"\n  [dim]... and {len(plan_ids) - 10} more plans[/dim]")
+                    
+                    # Ask user to select
+                    console.print("\n[bold]계획을 선택하세요 (번호 입력):[/bold]")
+                    choice = session.prompt("선택 > ")
+                    
+                    try:
+                        idx = int(choice.strip())
+                        if 1 <= idx <= min(10, len(plan_ids)):
+                            selected_plan_id = plan_ids[idx - 1]
+                            
+                            # Load and show plan
+                            plan = architect_mode.load_plan(selected_plan_id)
+                            
+                            if plan:
+                                architect_mode.visualize_plan(plan)
+                                
+                                # Ask if user wants to re-execute
+                                if Confirm.ask("\n이 계획을 다시 실행하시겠습니까?", default=False, console=console):
+                                    architect_mode.execute_plan(plan)
+                                    architect_mode.save_plan(plan)
+                        else:
+                            console.print("[red]잘못된 선택입니다.[/red]")
+                    except ValueError:
+                        console.print("[red]숫자를 입력해주세요.[/red]")
+                        
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"Resume 실행 중 오류: {e}"))
+                
                 continue
 
             elif user_input.strip().lower().startswith('/repo'):
@@ -447,7 +546,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial', '/architect', '/resume']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
