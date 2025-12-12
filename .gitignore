@@ -12,7 +12,6 @@ venv/
 # IDEs and editors
 .vscode/
 .idea/
-
 # macOS
 .DS_Store
 
@@ -25,7 +24,6 @@ venv/
 tests/fixtures/
 .poetry/lock
 templates/
-
 
 # 실행파일 및 Command history
 dist/
