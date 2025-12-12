@@ -111,31 +111,22 @@ def main():
                 continue
 
             elif user_input.strip().lower().startswith('/architect '):
-                # Architect Mode - AI Task Orchestration
-                # Extract the user request (everything after /architect)
-                request = user_input.strip()[11:].strip()  # Remove '/architect ' prefix
+                # Architect Mode - AI 작업 오케스트레이션
+                # 사용자 요청 추출 (/architect 뒤의 모든 내용)
+                request = user_input.strip()[11:].strip()  # '/architect ' 접두사 제거
                 
                 if not request:
                     console.print(panels.create_error_panel("사용법: /architect \"자연어 요청\"\n예: /architect \"유선 회선 기준으로 유무선 결합 가입년수 합산값 조회하는 쿼리 개발해줘\""))
                     continue
                 
                 try:
-                    # Run architect mode
+                    # Architect 모드 실행
                     plan = architect_mode.run(request)
                     
                     if plan:
                         console.print(f"\n[bold green]✅ Architect Mode 완료![/bold green]")
                         console.print(f"[dim]계획 ID: {plan.plan_id}[/dim]")
                         console.print(f"[dim]상태: {plan.status}[/dim]")
-                        
-                        # Show summary
-                        summary = plan.get_summary()
-                        console.print(f"\n[bold cyan]📊 실행 요약:[/bold cyan]")
-                        console.print(f"  총 단계: {summary['total']}")
-                        console.print(f"  성공: [green]{summary['success']}[/green]")
-                        console.print(f"  실패: [red]{summary['failed']}[/red]")
-                        console.print(f"  건너뛰기: [yellow]{summary['skipped']}[/yellow]")
-                    
                 except Exception as e:
                     console.print(panels.create_error_panel(f"Architect Mode 실행 중 오류: {e}"))
                 

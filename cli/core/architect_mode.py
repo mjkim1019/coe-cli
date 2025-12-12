@@ -1,8 +1,8 @@
 """
-Architect Mode - AI Task Orchestration Engine
+Architect Mode - AI 작업 오케스트레이션 엔진
 
-Breaks down complex natural language requests into step-by-step execution plans,
-seeks user approval, and sequentially executes each step.
+복잡한 자연어 요청을 단계별 실행 계획으로 분해하고,
+사용자 승인을 받아 각 단계를 순차적으로 실행합니다.
 """
 
 import json
@@ -24,7 +24,7 @@ from llm.service import LLMService
 
 
 class ArchitectMode:
-    """AI Task Orchestration Engine"""
+    """AI 작업 오케스트레이션 엔진"""
     
     def __init__(self, console: Console, llm_service: LLMService, 
                  file_manager, file_editor, session, template_manager=None):
@@ -39,7 +39,7 @@ class ArchitectMode:
         self.plans_dir.mkdir(parents=True, exist_ok=True)
     
     def run(self, user_request: str) -> Optional[ExecutionPlan]:
-        """Main entry point for Architect Mode"""
+        """Architect Mode 메인 진입점"""
         self.console.print(Panel(
             f"[bold cyan]🏗️  Architect Mode 시작[/bold cyan]\n\n"
             f"요청: [yellow]{user_request}[/yellow]",
@@ -47,30 +47,30 @@ class ArchitectMode:
             border_style="cyan"
         ))
         
-        # Step 1: Generate Plan
+        # 1단계: 계획 생성
         plan = self.generate_plan(user_request)
         if not plan:
             return None
         
-        # Step 2: Visualize and get approval
+        # 2단계: 시각화 및 승인 요청
         self.visualize_plan(plan)
         if not self.approve_plan(plan):
             self.console.print("[yellow]계획이 거부되었습니다.[/yellow]")
             return None
         
-        # Step 3: Execute plan
+        # 3단계: 계획 실행
         self.execute_plan(plan)
         
-        # Step 4: Save plan
+        # 4단계: 계획 저장
         self.save_plan(plan)
         
         return plan
     
     def generate_plan(self, user_request: str) -> Optional[ExecutionPlan]:
-        """Step 1: Generate execution plan using LLM"""
+        """1단계: LLM을 사용하여 실행 계획 생성"""
         self.console.print("\n[cyan]📋 실행 계획 생성 중...[/cyan]")
         
-        # Prepare context - show current files in detail
+        # 컨텍스트 준비 - 현재 파일들을 상세하게 표시
         files_count = len(self.file_manager.files)
         
         if files_count == 0:
@@ -78,20 +78,20 @@ class ArchitectMode:
             self.console.print("[yellow]💡 Tip: 파일을 먼저 추가하면 더 정확한 계획이 생성됩니다.[/yellow]")
             self.console.print("[dim]예: /add schema/*.sql 후 /architect 사용[/dim]\n")
         else:
-            # Show detailed file list
+            # 상세한 파일 목록 표시
             file_paths = list(self.file_manager.files.keys())
             if files_count <= 10:
-                # Show all files if 10 or less
+                # 10개 이하면 모든 파일 표시
                 file_list = "\n".join([f"  - {os.path.basename(f)} ({f})" for f in file_paths])
             else:
-                # Show first 10 and summarize rest
+                # 처음 10개만 표시하고 나머지는 요약
                 file_list = "\n".join([f"  - {os.path.basename(f)} ({f})" for f in file_paths[:10]])
                 file_list += f"\n  ... and {files_count - 10} more files"
             
             self.console.print(f"[green]✓ {files_count}개 파일이 이미 세션에 있습니다.[/green]")
             self.console.print("[dim]계획 생성 시 이 파일들을 활용합니다...[/dim]\n")
         
-        # Build messages
+        # 메시지 빌드
         messages = [
             {"role": "system", "content": self.prompts.PLAN_GENERATION_SYSTEM},
             {"role": "user", "content": self.prompts.PLAN_GENERATION_USER_TEMPLATE.format(
@@ -109,21 +109,21 @@ class ArchitectMode:
             response_content = response["choices"][0]["message"]["content"]
             DebugManager.llm(f"Plan generation response: {response_content[:200]}...")
             
-            # Clean up response - remove markdown code blocks if present
+            # 응답 정리 - 마크다운 코드 블록이 있으면 제거
             cleaned_content = response_content.strip()
             
-            # Remove markdown code blocks
+            # 마크다운 코드 블록 제거
             if cleaned_content.startswith("```json"):
-                cleaned_content = cleaned_content[7:]  # Remove ```json
+                cleaned_content = cleaned_content[7:]  # ```json 제거
             elif cleaned_content.startswith("```"):
-                cleaned_content = cleaned_content[3:]  # Remove ```
+                cleaned_content = cleaned_content[3:]  # ``` 제거
             
             if cleaned_content.endswith("```"):
-                cleaned_content = cleaned_content[:-3]  # Remove trailing ```
+                cleaned_content = cleaned_content[:-3]  # 끝의 ``` 제거
             
             cleaned_content = cleaned_content.strip()
             
-            # Try to find JSON object if there's text before/after
+            # 앞뒤에 텍스트가 있으면 JSON 객체 찾기
             json_start = cleaned_content.find('{')
             json_end = cleaned_content.rfind('}')
             if json_start != -1 and json_end != -1:
@@ -131,7 +131,7 @@ class ArchitectMode:
             
             DebugManager.llm(f"Cleaned content: {cleaned_content[:200]}...")
             
-            # Parse JSON
+            # JSON 파싱
             try:
                 plan_data = json.loads(cleaned_content)
             except json.JSONDecodeError as e:
@@ -139,26 +139,26 @@ class ArchitectMode:
                 DebugManager.error(f"First parse attempt failed: {e}")
                 DebugManager.error(f"Content: {cleaned_content}")
                 
-                # Try to fix common issues
+                # 일반적인 문제 수정 시도
                 import re
-                # Replace single quotes with double quotes (common issue)
+                # 작은따옴표를 큰따옴표로 변경 (일반적인 문제)
                 fixed_content = cleaned_content.replace("'", '"')
-                # Remove trailing commas before closing braces/brackets
+                # 닫는 중괄호/대괄호 앞의 trailing comma 제거
                 fixed_content = re.sub(r',(\s*[}\]])', r'\1', fixed_content)
                 
                 try:
                     plan_data = json.loads(fixed_content)
                     self.console.print("[green]✓ 자동 수정 후 파싱 성공[/green]")
                 except json.JSONDecodeError:
-                    # Give up and show error
+                    # 포기하고 에러 표시
                     raise
             
-            # Validate structure
+            # 구조 검증
             if "steps" not in plan_data or not isinstance(plan_data["steps"], list):
                 self.console.print("[red]❌ 잘못된 계획 형식입니다.[/red]")
                 return None
             
-            # Create ExecutionPlan
+            # ExecutionPlan 생성
             plan_id = datetime.now().strftime("%Y%m%d_%H%M%S")
             steps = []
             skipped_steps = []
@@ -166,14 +166,14 @@ class ArchitectMode:
             for step_data in plan_data["steps"]:
                 step_command = step_data.get("command", "")
                 
-                # Smart filtering: Skip /add if file already in session
+                # 스마트 필터링: 파일이 이미 세션에 있으면 /add 건너뛰기
                 if step_command == "/add":
                     file_param = step_data.get("parameters", {}).get("file") or step_data.get("parameters", {}).get("files")
                     if file_param:
-                        # Check if file is already added
+                        # 파일이 이미 추가되었는지 확인
                         file_to_check = file_param if isinstance(file_param, str) else (file_param[0] if file_param else "")
                         
-                        # Simple check: see if any file in session matches
+                        # 간단한 확인: 세션의 파일과 매칭되는지 확인
                         already_added = False
                         for existing_file in self.file_manager.files.keys():
                             if file_to_check in existing_file or os.path.basename(file_to_check) in existing_file:
@@ -186,11 +186,11 @@ class ArchitectMode:
                                 "description": step_data.get("description", ""),
                                 "reason": f"File '{file_to_check}' already in session"
                             })
-                            continue  # Skip this step
+                            continue  # 이 단계 건너뛰기
                 
-                # Add the step
+                # 단계 추가
                 step = ExecutionStep(
-                    step_number=len(steps) + 1,  # Renumber after filtering
+                    step_number=len(steps) + 1,  # 필터링 후 재번호 매기기
                     command=step_command,
                     description=step_data.get("description", ""),
                     parameters=step_data.get("parameters", {}),
@@ -198,7 +198,7 @@ class ArchitectMode:
                 )
                 steps.append(step)
             
-            # Show what was optimized
+            # 최적화된 내용 표시
             if skipped_steps:
                 self.console.print(f"[yellow]⚡ {len(skipped_steps)}개 불필요한 단계를 최적화했습니다:[/yellow]")
                 for skipped in skipped_steps:
@@ -238,8 +238,8 @@ class ArchitectMode:
             return None
     
     def visualize_plan(self, plan: ExecutionPlan):
-        """Step 2: Visualize the execution plan"""
-        # Create rich table
+        """2단계: 실행 계획 시각화"""
+        # 리치 테이블 생성
         table = Table(title=f"📋 실행 계획: {plan.plan_id}", show_header=True, header_style="bold cyan")
         table.add_column("Step", style="cyan", width=6)
         table.add_column("Command", style="yellow", width=10)
@@ -248,7 +248,7 @@ class ArchitectMode:
         table.add_column("Reason", style="dim", width=30)
         
         for step in plan.steps:
-            # Format parameters
+            # 파라미터 포맷팅
             params_str = "\n".join([f"{k}: {v}" for k, v in step.parameters.items()])
             
             table.add_row(
@@ -263,7 +263,7 @@ class ArchitectMode:
         self.console.print()
     
     def approve_plan(self, plan: ExecutionPlan) -> bool:
-        """Step 2: Get user approval for the plan"""
+        """2단계: 계획 사용자 승인 받기"""
         self.console.print("[bold yellow]❓ 이 계획을 승인하시겠습니까?[/bold yellow]")
         approved = Confirm.ask("계획 실행을 승인하시겠습니까?", default=True, console=self.console)
         
@@ -274,7 +274,7 @@ class ArchitectMode:
         return approved
     
     def execute_plan(self, plan: ExecutionPlan):
-        """Step 3: Execute the plan sequentially"""
+        """3단계: 계획을 순차적으로 실행"""
         plan.status = "executing"
         self.console.print(Panel(
             "[bold cyan]🚀 계획 실행 시작[/bold cyan]",
@@ -293,7 +293,7 @@ class ArchitectMode:
                 step.status = "failed"
                 self.console.print(f"[red]❌ Step {step.step_number} 실패[/red]")
                 
-                # Handle failure
+                # 실패 처리
                 action = self._handle_step_failure(step)
                 
                 if action == "stop":
@@ -325,7 +325,7 @@ class ArchitectMode:
                 ))
     
     def _execute_step(self, step: ExecutionStep) -> bool:
-        """Execute a single step"""
+        """단일 단계 실행"""
         step.status = "executing"
         
         try:
@@ -338,11 +338,11 @@ class ArchitectMode:
             elif step.command == "/ask":
                 return self._execute_ask(step)
             elif step.command == "/exec":
-                # Legacy support - /exec is deprecated
+                # 레거시 지원 - /exec는 더 이상 권장되지 않음
                 self.console.print(f"[yellow]⚠ /exec command is not fully implemented in CLI[/yellow]")
                 return self._execute_exec(step)
             elif step.command == "/test":
-                # Legacy support - /test is deprecated
+                # 레거시 지원 - /test는 더 이상 권장되지 않음
                 self.console.print(f"[yellow]⚠ /test command is not fully implemented in CLI[/yellow]")
                 return self._execute_test(step)
             else:
@@ -356,20 +356,20 @@ class ArchitectMode:
             return False
     
     def _execute_new(self, step: ExecutionStep) -> bool:
-        """Execute /new command - Create file from template"""
+        """Execute /new 명령 - 템플릿에서 파일 생성"""
         if not self.template_manager:
             step.error = "TemplateManager not available"
             self.console.print("[red]⚠ Template creation is not available in this session[/red]")
             return False
         
-        # Get parameters
+        # 파라미터 가져오기
         template = step.parameters.get("template")
         service_id = step.parameters.get("service_id")
         filename = step.parameters.get("filename")
         description = step.parameters.get("description", "")
         author = step.parameters.get("author", "architect")
         
-        # Validate required parameters
+        # 필수 파라미터 검증
         if not template:
             step.error = "Missing required parameter: template"
             return False
@@ -380,7 +380,7 @@ class ArchitectMode:
             step.error = "Missing required parameter: filename"
             return False
         
-        # Ensure filename has proper extension if not provided
+        # 파일명에 확장자가 없으면 추가
         if '.' not in filename:
             template_ext = template.split('.')[-1] if '.' in template else 'txt'
             filename = f"{filename}.{template_ext}"
@@ -391,7 +391,7 @@ class ArchitectMode:
         if description:
             self.console.print(f"[dim]  설명: {description}[/dim]")
         
-        # Create file from template
+        # 템플릿에서 파일 생성
         try:
             success = self.template_manager.create_from_template(
                 template_name_or_number=template,
@@ -416,7 +416,7 @@ class ArchitectMode:
             return False
     
     def _execute_add(self, step: ExecutionStep) -> bool:
-        """Execute /add command"""
+        """Execute /add 명령"""
         file_param = step.parameters.get("file") or step.parameters.get("files")
         if not file_param:
             step.error = "No file parameter provided"
@@ -433,8 +433,8 @@ class ArchitectMode:
             return False
     
     def _execute_edit(self, step: ExecutionStep) -> bool:
-        """Execute /edit command - create new file with content from parameters"""
-        # Get parameters
+        """Execute /edit 명령 - 파라미터의 내용으로 새 파일 생성"""
+        # 파라미터 가져오기
         file_path = step.parameters.get("file") or step.parameters.get("files")
         content = step.parameters.get("content")
         
@@ -446,20 +446,20 @@ class ArchitectMode:
             step.error = "No content parameter provided"
             return False
         
-        # Handle single file only
+        # 단일 파일만 처리
         if isinstance(file_path, list):
             file_path = file_path[0]
         
-        # Generate new filename based on original
+        # 원본 기반으로 새 파일명 생성
         base_dir = os.path.dirname(os.path.abspath(file_path))
         base_name = os.path.basename(file_path)
         name_parts = os.path.splitext(base_name)
         
-        # Add _edited suffix before extension
+        # 확장자 앞에 _edited 접미사 추가
         new_filename = f"{name_parts[0]}_edited{name_parts[1]}"
         target_path = os.path.join(base_dir, new_filename)
         
-        # If file exists, add counter
+        # 파일이 존재하면 카운터 추가
         counter = 1
         while os.path.exists(target_path):
             new_filename = f"{name_parts[0]}_edited_{counter}{name_parts[1]}"
@@ -471,14 +471,14 @@ class ArchitectMode:
         self.console.print(f"[dim]  내용 길이: {len(content)} characters[/dim]")
         
         try:
-            # Ensure directory exists
+            # 디렉토리가 존재하는지 확인
             os.makedirs(base_dir, exist_ok=True)
             
-            # Write content to new file
+            # 새 파일에 내용 쓰기
             with open(target_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            # Update session
+            # 세션 업데이트
             self.file_manager.files[target_path] = content
             
             step.output = f"Created {target_path} with {len(content)} characters"
@@ -493,7 +493,7 @@ class ArchitectMode:
             return False
     
     def _execute_exec(self, step: ExecutionStep) -> bool:
-        """Execute /exec command - shell command execution"""
+        """Execute /exec 명령 - 쉘 명령 실행"""
         command = step.parameters.get("command")
         if not command:
             step.error = "No command parameter provided"
@@ -501,12 +501,12 @@ class ArchitectMode:
         
         self.console.print(f"[dim]  실행할 명령: {command}[/dim]")
         
-        # For safety, ask for confirmation for exec commands
+        # 안전을 위해 exec 명령 실행 전 확인
         if not Confirm.ask(f"명령을 실행하시겠습니까? '{command}'", default=False, console=self.console):
             step.error = "User cancelled execution"
             return False
         
-        # Execute command (simplified - in production, use proper subprocess handling)
+        # 명령 실행 (단순화됨 - 프로덕션에서는 적절한 subprocess 처리 사용)
         import subprocess
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
@@ -517,22 +517,22 @@ class ArchitectMode:
             return False
     
     def _execute_test(self, step: ExecutionStep) -> bool:
-        """Execute /test command"""
+        """Execute /test 명령"""
         test_type = step.parameters.get("type", "syntax")
         file_path = step.parameters.get("file")
         
         self.console.print(f"[dim]  테스트 타입: {test_type}[/dim]")
         self.console.print(f"[dim]  대상 파일: {file_path}[/dim]")
         
-        # Simplified - in production, integrate with actual test framework
+        # 단순화됨 - 프로덕션에서는 실제 테스트 프레임워크와 통합
         step.output = f"Test '{test_type}' on '{file_path}' passed"
         return True
     
     def _execute_ask(self, step: ExecutionStep) -> bool:
-        """Execute /ask command - query LLM"""
+        """Execute /ask 명령 - LLM 쿼리"""
         question = step.parameters.get("question") or step.description
         
-        # Use existing LLM service to ask question
+        # 기존 LLM 서비스를 사용하여 질문
         from cli.core.context_manager import PromptBuilder
         
         prompt_builder = PromptBuilder('ask')
@@ -549,28 +549,28 @@ class ArchitectMode:
             return False
     
     def _handle_step_failure(self, step: ExecutionStep) -> str:
-        """Handle step failure - ask user what to do"""
+        """단계 실패 처리 - 사용자에게 조치 방법 물어보기"""
         self.console.print(f"\n[yellow]⚠ Step {step.step_number} 실패: {step.error}[/yellow]\n")
         
         self.console.print("[bold]다음 조치를 선택하세요:[/bold]")
         self.console.print("  1. [red]중단 (stop)[/red] - 전체 실행 중단")
         self.console.print("  2. [yellow]건너뛰기 (skip)[/yellow] - 이 단계를 건너뛰고 계속")
-        # self.console.print("  3. [cyan]재시도 (retry)[/cyan] - 이 단계 다시 실행")  # Future
-        # self.console.print("  4. [green]수정 (modify)[/green] - 단계 수정 후 재실행")  # Future
+        # self.console.print("  3. [cyan]재시도 (retry)[/cyan] - 이 단계 다시 실행")  # 향후 구현
+        # self.console.print("  4. [green]수정 (modify)[/green] - 단계 수정 후 재실행")  # 향후 구현
         
         choice = Prompt.ask("선택", choices=["stop", "skip"], default="stop", console=self.console)
         return choice
     
     def save_plan(self, plan: ExecutionPlan):
-        """Step 4: Save plan to file"""
+        """4단계: 계획을 파일로 저장"""
         filepath = self.plans_dir / f"plan_{plan.plan_id}.yaml"
         plan.save_to_file(filepath)
         
         self.console.print(f"\n[green]💾 계획이 저장되었습니다: {filepath}[/green]")
     
     def load_plan(self, plan_id: str) -> Optional[ExecutionPlan]:
-        """Load a plan from file"""
-        filepath = self.plans_dir / f"plan_{plan_id}.yaml"
+        """파일에서 계획 로드"""
+        filepath = self.plans_dir / f"plan_{plan.plan_id}.yaml"
         if not filepath.exists():
             self.console.print(f"[red]계획을 찾을 수 없습니다: {plan_id}[/red]")
             return None
@@ -584,7 +584,7 @@ class ArchitectMode:
             return None
     
     def list_plans(self) -> List[str]:
-        """List all saved plans"""
+        """저장된 모든 계획 목록 표시"""
         plan_files = list(self.plans_dir.glob("plan_*.yaml"))
         plan_ids = [f.stem.replace("plan_", "") for f in plan_files]
-        return sorted(plan_ids, reverse=True)  # Most recent first
+        return sorted(plan_ids, reverse=True)  # 최신 순으로 정렬

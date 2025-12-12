@@ -1,6 +1,6 @@
 """
-Architect Plan Data Structures
-Defines the ExecutionPlan class for storing and managing execution plans
+Architect Plan 데이터 구조
+실행 계획을 저장하고 관리하기 위한 ExecutionPlan 클래스 정의
 """
 
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 class ExecutionStep:
-    """Represents a single step in an execution plan"""
+    """실행 계획의 단일 단계를 나타냅니다"""
     
     def __init__(self, step_number: int, command: str, description: str, 
                  parameters: Dict[str, Any], reason: str):
@@ -25,7 +25,7 @@ class ExecutionStep:
         self.error = None
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert step to dictionary"""
+        """단계를 딕셔너리로 변환"""
         return {
             "step_number": self.step_number,
             "command": self.command,
@@ -39,7 +39,7 @@ class ExecutionStep:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ExecutionStep':
-        """Create step from dictionary"""
+        """딕셔너리에서 단계 생성"""
         step = cls(
             step_number=data["step_number"],
             command=data["command"],
@@ -54,7 +54,7 @@ class ExecutionStep:
 
 
 class ExecutionPlan:
-    """Represents a complete execution plan with all steps"""
+    """모든 단계를 포함한 완전한 실행 계획을 나타냅니다"""
     
     def __init__(self, plan_id: str, description: str, steps: List[ExecutionStep]):
         self.plan_id = plan_id
@@ -65,7 +65,7 @@ class ExecutionPlan:
         self.results = []
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert plan to dictionary"""
+        """계획을 딕셔너리로 변환"""
         return {
             "plan_id": self.plan_id,
             "description": self.description,
@@ -77,7 +77,7 @@ class ExecutionPlan:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ExecutionPlan':
-        """Create plan from dictionary"""
+        """딕셔너리에서 계획 생성"""
         steps = [ExecutionStep.from_dict(step_data) for step_data in data["steps"]]
         plan = cls(
             plan_id=data["plan_id"],
@@ -90,27 +90,27 @@ class ExecutionPlan:
         return plan
     
     def save_to_file(self, filepath: Path):
-        """Save plan to YAML file"""
+        """계획을 YAML 파일로 저장"""
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w', encoding='utf-8') as f:
             yaml.dump(self.to_dict(), f, allow_unicode=True, sort_keys=False)
     
     @classmethod
     def load_from_file(cls, filepath: Path) -> 'ExecutionPlan':
-        """Load plan from YAML file"""
+        """YAML 파일에서 계획 로드"""
         with open(filepath, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
     
     def get_step_by_number(self, step_number: int) -> Optional[ExecutionStep]:
-        """Get a specific step by its number"""
+        """번호로 특정 단계 가져오기"""
         for step in self.steps:
             if step.step_number == step_number:
                 return step
         return None
     
     def mark_step_status(self, step_number: int, status: str, output: str = None, error: str = None):
-        """Update step status"""
+        """단계 상태 업데이트"""
         step = self.get_step_by_number(step_number)
         if step:
             step.status = status
@@ -118,21 +118,21 @@ class ExecutionPlan:
             step.error = error
     
     def get_next_pending_step(self) -> Optional[ExecutionStep]:
-        """Get the next step that is pending execution"""
+        """실행 대기 중인 다음 단계 가져오기"""
         for step in self.steps:
             if step.status == "pending":
                 return step
         return None
     
     def is_complete(self) -> bool:
-        """Check if all steps are complete (success, failed, or skipped)"""
+        """모든 단계가 완료되었는지 확인 (성공, 실패 또는 건너뛰기)"""
         for step in self.steps:
             if step.status in ["pending", "executing"]:
                 return False
         return True
     
     def get_summary(self) -> Dict[str, int]:
-        """Get summary of step statuses"""
+        """단계 상태 요약 가져오기"""
         summary = {
             "total": len(self.steps),
             "success": 0,

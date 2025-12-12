@@ -1,6 +1,6 @@
 """
-Architect Mode Prompts
-LLM prompts for plan generation and analysis
+Architect Mode 프롬프트
+계획 생성 및 분석을 위한 LLM 프롬프트
 """
 
 class ArchitectPrompts:

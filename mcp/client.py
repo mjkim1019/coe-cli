@@ -22,7 +22,7 @@ class MCPTool:
 class MCPClient:
     """HTTP 기반 MCP 클라이언트"""
     
-    def __init__(self, base_url: str = "http://greatcoe.cafe24.com"):
+    def __init__(self, base_url: str = "http://greatcoe.cafe24.com:9000"):
         self.base_url = base_url.rstrip('/')
         self.tools: Dict[str, MCPTool] = {}
         self._load_tools()
