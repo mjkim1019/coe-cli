@@ -101,6 +101,11 @@ class SwingUIComponents:
 [yellow]/edit[/yellow] - 수정/구현 모드 (실제 파일 변경, 코드 생성)
 [yellow]/edit[/yellow] <전략> - 특정 전략으로 edit 모드 (예: /edit udiff, /edit block)
 
+[bold cyan]🏗️  AI 태스크 오케스트레이션:[/bold cyan]
+[yellow]/architect[/yellow] "자연어 요청" - AI가 자동으로 계획 생성 및 실행
+    예: /architect "유선 회선 기준 유무선 결합 가입년수 조회 쿼리 개발해줘"
+    지원: 파일 생성(/new), 파일 추가(/add), 편집(/edit), 실행(/exec), 테스트(/test), 질문(/ask)
+
 [bold cyan]📝 파일 편집 명령어:[/bold cyan]
 [yellow]/preview[/yellow] - 마지막 edit 응답의 변경사항 미리보기
 [yellow]/apply[/yellow] - 변경사항을 실제 파일에 적용
@@ -112,6 +117,7 @@ class SwingUIComponents:
 [yellow]/session[/yellow] - 현재 세션 ID 확인
 [yellow]/session-reset[/yellow] - 세션 초기화
 
+[yellow]/tutorial[/yellow] - 대화형 튜토리얼 시작
 [yellow]/help[/yellow] - 이 도움말 메시지 표시
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
 
