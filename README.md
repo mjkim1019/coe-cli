@@ -1,49 +1,117 @@
-# SwingMate 프로젝트
+# Mider
 
-`SwingMate`는 LLM 백엔드와 통신하여, 사용자가 코드에 대해 **질문하고**, **수정하고**, **테스트하며**, **코드 구조를 분석**할 수 있는 대화형 CLI 도구입니다.
+`Mider`는 LLM 기반 대화형 코드 분석 및 편집 CLI 도구입니다. 코드에 대해 **질문하고**, **수정하고**, **구조를 분석**할 수 있습니다.
 
 ## 빠른 시작
 
-### 실행 방법
-
 ```bash
+# 실행
+python3 run.py
+
+# 또는
 python3 cli/main.py
 ```
 
-### 주요 명령어
+## 주요 기능
 
-- `/add <파일>` - 파일을 컨텍스트에 추가
-- `/ask` - 질문 모드
-- `/edit` - 수정 모드 (whole/block/udiff 지원)
-- `/test` - 테스트 실행
-- `/preview` - 변경사항 미리보기
-- `/apply` - 변경사항 적용
-- `/repo` - 리포지토리 맵 생성
-- `/help` - 도움말 표시
-- `/exit` - CLI 종료
+| 기능 | 설명 |
+|------|------|
+| **Ask 모드** | 코드에 대해 자연어로 질문 |
+| **Edit 모드** | 3가지 전략으로 코드 수정 (wholefile/editblock/udiff) |
+| **Architect 모드** | AI가 복잡한 작업을 단계별 계획으로 분해 실행 |
+| **파일타입 분석** | C, SQL, XML 파일 전용 분석 프롬프트 |
+| **Tutorial 모드** | 처음 사용자를 위한 대화형 가이드 |
+
+## 명령어
+
+### 기본 명령어
+| 명령어 | 설명 |
+|--------|------|
+| `/add <파일>` | 파일을 컨텍스트에 추가 |
+| `/files` | 추가된 파일 목록 보기 |
+| `/tree` | 파일 트리 구조 보기 |
+| `/info <파일>` | 파일 상세 분석 정보 |
+| `/clear` | 대화 기록 초기화 |
+
+### 모드 전환
+| 명령어 | 설명 |
+|--------|------|
+| `/ask` | 질문/분석 모드 |
+| `/edit [전략]` | 수정 모드 (wholefile/editblock/udiff) |
+| `/architect` | AI 작업 오케스트레이션 모드 |
+| `/tutorial` | 대화형 튜토리얼 |
+
+### 편집 관련
+| 명령어 | 설명 |
+|--------|------|
+| `/preview` | 변경사항 미리보기 |
+| `/apply` | 변경사항 적용 |
+| `/history` | 편집 히스토리 |
+| `/rollback <ID>` | 편집 롤백 |
+
+### 분석 도구
+| 명령어 | 설명 |
+|--------|------|
+| `/repo [파일들]` | Repository Map 생성 |
+| `/mider-cache` | MiderAnalyzer 캐시 상태 |
 
 ## 프로젝트 구조
 
-- `cli/` - CLI 인터페이스 관련 코드
-  - `main.py` - 메인 CLI 애플리케이션
-  - `completer.py` - 자동완성 기능
-  - `core/` - 핵심 기능 모듈들
-    - `context_manager.py` - 프롬프트 빌딩 관리 (ASK 모드 백그라운드 분석 포함)
-    - `analyzer.py` - SWMateAnalyzer 코드 구조 분석 엔진
-    - `ask_prompts.py` - ask 모드용 프롬프트
-    - `edit_prompts.py` - edit 모드용 프롬프트
-    - `base_prompts.py` - 기본 프롬프트
-- `actions/` - 파일 및 명령 처리 액션
-  - `file_manager.py` - 파일 관리 기능
-  - `command_runner.py` - 명령 실행 기능
-- `llm/` - LLM 서비스 연동
-  - `service.py` - LLM API 통신 서비스
-- `prompts/` - 파일 타입별 특화 분석 프롬프트
-  - `c_file_prompt.py` - C 파일 전용 분석 프롬프트
-  - `xml_file_prompt.py` - XML 파일 전용 분석 프롬프트
-  - `sql_file_prompt.py` - SQL 파일 전용 분석 프롬프트
-  - `generic_file_prompt.py` - 일반 파일 기본 프롬프트
-- `tests/` - 테스트 파일 및 픽스처
+```
+mider/
+├── run.py                      # 진입점
+│
+├── cli/                        # CLI 애플리케이션
+│   ├── main.py                 # 메인 REPL 루프
+│   ├── completer.py            # 자동완성
+│   │
+│   ├── core/                   # 핵심 로직
+│   │   ├── analyzer.py         # MiderAnalyzer (코드 분석 엔진)
+│   │   ├── context_manager.py  # 프롬프트 빌딩 및 캐싱
+│   │   ├── debug_manager.py    # 디버그 출력 관리
+│   │   ├── mcp_integration.py  # MCP 프로토콜 통합
+│   │   ├── ask_prompts.py      # Ask 모드 프롬프트
+│   │   └── edit_prompts.py     # Edit 모드 프롬프트
+│   │
+│   ├── architect/              # AI 작업 오케스트레이션
+│   │   ├── mode.py             # Architect 모드 로직
+│   │   ├── plan.py             # 실행 계획 데이터 구조
+│   │   └── prompts.py          # Architect 프롬프트
+│   │
+│   ├── coders/                 # 편집 전략 (Aider 영감)
+│   │   ├── base_coder.py       # 기본 클래스 및 레지스트리
+│   │   ├── wholefile_coder.py  # 전체 파일 교체 전략
+│   │   ├── editblock_coder.py  # 블록 교체 전략
+│   │   ├── udiff_coder.py      # Unified Diff 전략
+│   │   └── repo_mapper.py      # Repository 매핑
+│   │
+│   └── ui/                     # UI 컴포넌트
+│       ├── components.py       # Rich UI 요소
+│       ├── panels.py           # UI 패널
+│       ├── formatters.py       # 응답 포매팅
+│       ├── interactive.py      # 대화형 UI 헬퍼
+│       └── tutorial.py         # 튜토리얼 모드
+│
+├── actions/                    # 파일 작업
+│   ├── file_manager.py         # 파일 컨텍스트 관리
+│   ├── file_editor.py          # 파일 편집 및 백업/롤백
+│   ├── file_tree_analyzer.py   # 파일 트리 분석
+│   ├── template_manager.py     # 템플릿 관리
+│   └── document_generator.py   # 문서 생성
+│
+├── llm/                        # LLM 통합
+│   └── service.py              # LLM API 클라이언트
+│
+├── mcp/                        # MCP 프로토콜
+│   ├── client.py               # MCP HTTP 클라이언트
+│   └── tools.py                # MCP 도구 관리
+│
+└── prompts/                    # 파일타입별 분석 프롬프트
+    ├── c_file_prompt.py        # C 파일 분석
+    ├── sql_file_prompt.py      # SQL 파일 분석
+    ├── xml_file_prompt.py      # XML 파일 분석
+    └── generic_file_prompt.py  # 일반 파일 분석
+```
 
 ## 기술 스택
 
@@ -51,26 +119,41 @@ python3 cli/main.py
 - **CLI Framework**: Click
 - **Interactive Interface**: prompt_toolkit
 - **LLM Integration**: OpenAI API
+- **UI**: Rich library
 - **HTTP Client**: requests
 
 ## 아키텍처
 
-`SwingMate`는 사용자의 입력을 받아 백엔드 서버로 전달하는 **클라이언트**와, 실제 LLM 호출을 처리하는 **백엔드**로 구성된 클라이언트-서버 아키텍처를 따릅니다. 원활한 사용을 위해 백엔드 서버가 먼저 실행되어야 합니다.
-
-## 개발 가이드
-
-이 프로젝트를 수정할 때는:
-- Python 코딩 스타일을 일관되게 유지
-- prompt_toolkit과 click 라이브러리 사용 패턴 준수
-- 모듈화된 구조 유지 (cli, actions, llm, prompts 모듈 분리)
-- 한국어 사용자 친화적 메시지 제공
-- **파일 타입별 특화 분석**: 파일 확장자에 따라 적절한 전용 프롬프트 사용
-- **nullable 정보 필수**: 모든 입출력 파라미터에 nullable 여부 포함
-- **디버그 로그 유지**: LLM 분석 과정의 투명성을 위해 디버그 정보 출력
-- **Rich 테이블 형식**: 분석 결과를 보기 좋은 표 형태로 출력
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         CLI Layer                            │
+│  ┌─────────┐  ┌──────────┐  ┌───────────┐  ┌────────────┐  │
+│  │  main   │  │ completer│  │    ui/    │  │  architect │  │
+│  └────┬────┘  └──────────┘  └───────────┘  └────────────┘  │
+│       │                                                      │
+│  ┌────┴────────────────────────────────────────────────┐    │
+│  │                    core/                             │    │
+│  │  analyzer, context_manager, debug_manager, prompts  │    │
+│  └────┬────────────────────────────────────────────────┘    │
+│       │                                                      │
+│  ┌────┴────┐  ┌──────────┐                                  │
+│  │ coders/ │  │  mcp/    │                                  │
+│  └─────────┘  └──────────┘                                  │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+┌───────────────────────┴─────────────────────────────────────┐
+│                     Service Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │   actions/   │  │    llm/      │  │    prompts/      │   │
+│  │ file_manager │  │   service    │  │ c/sql/xml/generic│   │
+│  │ file_editor  │  └──────────────┘  └──────────────────┘   │
+│  └──────────────┘                                            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## 문서
 
-- [제품 요구사항](swing_cli_prd.md) - 제품 개요, 목표, 성공 지표
-- [기능 명세서](docs/features_spec.md) - 상세 기능 설명 및 구현 계획
-- [개발 컨벤션](docs/development_convention.md) - Git 브랜치, 커밋, PR 등 개발 규칙
+- [기능 명세서](docs/features_spec.md)
+- [개발 컨벤션](docs/development_convention.md)
+- [사용 가이드](docs/MIDER_USAGE.md)
+- [제품 요구사항](docs/mider_prd.md)

@@ -1,4 +1,13 @@
 import importlib
+import datetime
+import tempfile
+import os
+import json
+from io import StringIO
+from rich.console import Console
+
+from .analyzer import MiderAnalyzer
+from ..ui.interactive import analysis_keywords
 from .debug_manager import DebugManager
 
 class PromptBuilder:
@@ -8,6 +17,8 @@ class PromptBuilder:
         # RepoMap 캐싱용 저장소
         self._repo_map_cache = {}
         self._cache_key = None
+        # MiderAnalyzer 캐싱용 저장소
+        self._mider_analysis_cache = {}
 
     def _load_prompt_class(self):
         try:
@@ -18,6 +29,13 @@ class PromptBuilder:
             return prompt_class()
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Invalid task name '{self.task}'. Could not load prompts.") from e
+
+    def set_task(self, task: str):
+        """캐시를 유지하면서 task 모드 변경"""
+        if self.task != task:
+            self.task = task
+            self.prompts = self._load_prompt_class()
+            DebugManager.info(f"PromptBuilder task 변경됨: {task}")
 
     def build(self, user_input: str, file_context: dict, history: list = None, file_manager=None):
         # 입출력 관련 질문인지 검사
@@ -50,12 +68,20 @@ class PromptBuilder:
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
 
-                # 상세 구조 분석 정보 추가 (백그라운드에서 CoeAnalyzer 사용)
+                # 상세 구조 분석 정보 추가 (백그라운드에서 MiderAnalyzer 사용)
                 detailed_analysis = self._get_detailed_analysis(file_path, content)
                 if detailed_analysis:
                     file_str += f"\n\n{detailed_analysis}"
 
                 messages.append({"role": "system", "content": file_str})
+
+        # 4. Add MiderAnalyzer results if available (for structure analysis requests)
+        mider_analysis = self._get_relevant_mider_analysis(user_input, file_context)
+        if mider_analysis:
+            for file_path, analysis in mider_analysis.items():
+                analysis_str = f"File Structure Analysis for {file_path}:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}"
+                messages.append({"role": "system", "content": analysis_str})
+                DebugManager.mider_analyzer(f"MiderAnalyzer 결과를 프롬프트에 포함: {file_path}")
 
         # 4. Add existing history
         messages.extend(history)
@@ -79,9 +105,9 @@ class PromptBuilder:
         return messages
 
     def _get_detailed_analysis(self, file_path, content):
-        """CoeAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
+        """MiderAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
         try:
-            from .analyzer import CoeAnalyzer
+            from .analyzer import MiderAnalyzer
             import tempfile
             import os
             
@@ -91,8 +117,8 @@ class PromptBuilder:
                 tmp_path = tmp_file.name
             
             try:
-                # CoeAnalyzer로 분석 (화면 출력 없이)
-                analyzer = CoeAnalyzer()
+                # MiderAnalyzer로 분석 (화면 출력 없이)
+                analyzer = MiderAnalyzer()
                 # console 출력을 비활성화하기 위해 quiet 모드로 분석
                 original_console = analyzer.console
                 from rich.console import Console
@@ -392,6 +418,118 @@ class PromptBuilder:
         latest_size = len(self._repo_map_cache[latest_key])
 
         return f"✅ 캐시된 레포맵: {cache_count}개, 최신 크기: {latest_size} chars"
+
+    def get_cached_mider_analysis(self, file_path: str):
+        """캐싱된 MiderAnalyzer 분석 결과 반환"""
+        if file_path in self._mider_analysis_cache:
+            cached_data = self._mider_analysis_cache[file_path]
+            DebugManager.mider_analyzer(f"✅ 캐시된 MiderAnalyzer 결과 사용: {file_path}")
+            return cached_data.get('analysis')
+        return None
+
+    def perform_mider_analysis_on_demand(self, file_path: str, file_content: str, file_manager=None):
+        """요청 시에만 MiderAnalyzer 실행하고 캐싱"""
+        try:
+            DebugManager.mider_analyzer(f"MiderAnalyzer 실행 시작: {file_path}")
+            # MiderAnalyzer 인스턴스 생성
+            analyzer = MiderAnalyzer()
+            # 임시 파일 생성하여 분석 (기존 _get_detailed_analysis 로직 참고)
+            with tempfile.NamedTemporaryFile(mode='w', suffix=os.path.splitext(file_path)[1], delete=False, encoding='utf-8') as tmp_file:
+                tmp_file.write(file_content)
+                tmp_path = tmp_file.name
+
+            try:
+                # 화면 출력 없이 분석 수행
+                original_console = analyzer.console
+
+
+                # 출력을 StringIO로 리다이렉트
+                quiet_console = Console(file=StringIO(), stderr=False)
+                analyzer.console = quiet_console
+
+                # LLM 분석 수행 (기본 분석 + LLM 심화 분석)
+                results = analyzer.analyze_files([tmp_path], use_llm=True)
+
+                # 원래 console 복원
+                analyzer.console = original_console
+
+                if results and 'files' in results and tmp_path in results['files']:
+                    file_info = results['files'][tmp_path]
+
+                    # 캐시에 저장
+                    cache_data = {
+                        'timestamp': datetime.datetime.now().isoformat(),
+                        'analysis': {
+                            'basic_analysis': file_info.get('basic_analysis', {}),
+                            'llm_analysis': file_info.get('llm_analysis', {}),
+                            'file_type': file_info.get('file_type', 'unknown')
+                        }
+                    }
+
+                    self._mider_analysis_cache[file_path] = cache_data
+
+                    DebugManager.mider_analyzer(f"✅ MiderAnalyzer 분석 완료 및 캐시 저장: {file_path}")
+                    return cache_data['analysis']
+                else:
+                    DebugManager.mider_analyzer(f"❌ MiderAnalyzer 분석 결과 없음: {file_path}")
+                    return None
+
+            finally:
+                # 임시 파일 삭제
+                os.unlink(tmp_path)
+
+        except Exception as e:
+            DebugManager.error(f"MiderAnalyzer 분석 실패 ({file_path}): {e}")
+            return None
+
+    def get_mider_cache_status(self):
+        """MiderAnalyzer 캐시 상태 확인"""
+        if not self._mider_analysis_cache:
+            return "❌ 캐시된 MiderAnalyzer 분석 결과 없음"
+
+        cache_count = len(self._mider_analysis_cache)
+        cached_files = list(self._mider_analysis_cache.keys())
+
+        status = f"✅ 캐시된 MiderAnalyzer 분석: {cache_count}개 파일\n"
+        for file_path in cached_files:
+            filename = os.path.basename(file_path)
+            timestamp = self._mider_analysis_cache[file_path].get('timestamp', 'unknown')
+            status += f"  • {filename} ({timestamp})\n"
+
+        return status.strip()
+
+    def _get_relevant_mider_analysis(self, user_input: str, file_context: dict):
+        """사용자 입력과 파일 컨텍스트를 기반으로 관련된 MiderAnalyzer 분석 결과 반환"""
+        # 구조 분석 키워드 감지
+   
+        has_analysis_request = any(keyword in user_input.lower() for keyword in analysis_keywords)
+
+        if not has_analysis_request:
+            return {}
+
+        DebugManager.mider_analyzer(f"구조 분석 키워드 감지됨: {user_input[:50]}...")
+
+        # 분석 요청이 감지된 경우, 컨텍스트의 모든 파일에 대해 MiderAnalyzer 결과 확인
+        relevant_analysis = {}
+
+        if file_context:
+            for file_path, content in file_context.items():
+                # 캐시된 결과 확인
+                cached_analysis = self.get_cached_mider_analysis(file_path)
+
+                if cached_analysis:
+                    relevant_analysis[file_path] = cached_analysis
+                else:
+                    # 캐시에 없으면 새로 분석 수행
+                    DebugManager.mider_analyzer(f"MiderAnalyzer 새 분석 수행: {file_path}")
+                    new_analysis = self.perform_mider_analysis_on_demand(file_path, content, None)
+                    if new_analysis:
+                        relevant_analysis[file_path] = new_analysis
+
+        if relevant_analysis:
+            DebugManager.mider_analyzer(f"MiderAnalyzer 분석 결과 {len(relevant_analysis)}개 파일에 대해 프롬프트에 포함")
+
+        return relevant_analysis
 
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""

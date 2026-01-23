@@ -1,5 +1,5 @@
 """
-MCP Tool Manager for Swing CLI
+MCP Tool Manager for Mider
 MCP 도구 실행 및 결과 처리를 담당
 """
 

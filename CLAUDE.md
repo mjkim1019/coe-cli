@@ -1,6 +1,6 @@
-# Swing CLI 프로젝트
+# Mider 프로젝트
 
-`Swing CLI`는 LLM 백엔드와 통신하여, 사용자가 코드에 대해 **질문하고**, **수정하고**, **테스트하며**, **코드 구조를 분석**할 수 있는 대화형 CLI 도구입니다.
+`Mider`는 LLM 백엔드와 통신하여, 사용자가 코드에 대해 **질문하고**, **수정하고**, **테스트하며**, **코드 구조를 분석**할 수 있는 대화형 CLI 도구입니다.
 
 ## 프로젝트 구조
 
@@ -9,13 +9,15 @@
   - `completer.py` - 자동완성 기능
   - `core/` - 핵심 기능 모듈들
     - `context_manager.py` - 프롬프트 빌딩 관리 (ASK 모드 백그라운드 분석 포함)
-    - `analyzer.py` - CoeAnalyzer 코드 구조 분석 엔진
+    - `analyzer.py` - MiderAnalyzer 코드 구조 분석 엔진
     - `ask_prompts.py` - ask 모드용 프롬프트
     - `edit_prompts.py` - edit 모드용 프롬프트
     - `base_prompts.py` - 기본 프롬프트
 - `actions/` - 파일 및 명령 처리 액션
   - `file_manager.py` - 파일 관리 기능
-  - `command_runner.py` - 명령 실행 기능
+  - `file_editor.py` - 파일 편집 및 백업/롤백 기능
+  - `template_manager.py` - 템플릿 관리 기능
+  - `document_generator.py` - 프로젝트 문서 생성 기능
 - `llm/` - LLM 서비스 연동
   - `service.py` - LLM API 통신 서비스
 - `prompts/` - 파일 타입별 특화 분석 프롬프트 ✅
@@ -38,7 +40,7 @@
 1. **[.] LLM 기반 코드 구조 분석** ✅: 계층 구조, 호출 관계, 파일 카테고리화, 자연어 요약
 2. **[.] 대화형 REPL** ✅: prompt_toolkit을 사용한 명령어 기반 인터페이스 및 자동완성
 3. **[.] 파일 타입별 특화 분석** ✅: C 파일(.c), XML 파일(.xml), SQL 파일(.sql) 전용 프롬프트 지원
-4. **[.] 온디맨드 분석** ✅: `/add` 시 기본 분석만 수행, 사용자가 "구조 분석" 요청 시 CoeAnalyzer 실행
+4. **[.] 온디맨드 분석** ✅: `/add` 시 기본 분석만 수행, 사용자가 "구조 분석" 요청 시 MiderAnalyzer 실행
 5. **[.] JSON 응답 처리** ✅: ```json 형태 LLM 응답을 자동으로 테이블로 변환하여 표시
 6. **[.] 디버그 정보** ✅: LLM 호출 과정의 투명성을 위한 상세 디버그 출력
 7. **[P1] 튜토리얼 모드**: 처음 사용자를 위한 대화형 가이드 (C/SQL/XML 파일 분석 실습) - 개발 예정
@@ -155,11 +157,86 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
 - **디버그 로그 유지**: LLM 분석 과정의 투명성을 위해 디버그 정보 출력
 - **Rich 테이블 형식**: 분석 결과를 보기 좋은 표 형태로 출력
 
+## Git Commit 규칙 (Conventional Commits)
+
+subtask 완료할때마다 commit
+
+task 전체 완료하면 PR 생성
+
+### 커밋 메시지 형식
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
+```
+
+### Type (필수)
+| Type | 설명 | 예시 |
+|------|------|------|
+| `feat` | 새로운 기능 추가 | feat: 튜토리얼 모드 추가 |
+| `fix` | 버그 수정 | fix: 파일 경로 파싱 오류 수정 |
+| `docs` | 문서 변경 | docs: README 업데이트 |
+| `style` | 코드 포맷팅 (기능 변경 없음) | style: 들여쓰기 수정 |
+| `refactor` | 리팩토링 (기능/버그 수정 아님) | refactor: analyzer 모듈 분리 |
+| `perf` | 성능 개선 | perf: 캐싱으로 응답시간 단축 |
+| `test` | 테스트 추가/수정 | test: analyzer 유닛테스트 추가 |
+| `chore` | 빌드, 설정 등 기타 변경 | chore: dependencies 업데이트 |
+| `ci` | CI/CD 설정 변경 | ci: GitHub Actions 추가 |
+
+### Scope (선택)
+변경 범위를 나타내는 모듈명:
+- `cli` - CLI 인터페이스
+- `core` - 핵심 기능 (analyzer, context_manager 등)
+- `actions` - 파일/명령 처리
+- `llm` - LLM 서비스
+- `prompts` - 프롬프트 템플릿
+- `ui` - UI 컴포넌트
+- `coders` - 코드 편집 전략
+
+### Subject 작성 규칙
+- 명령형 현재 시제 사용 (Add, Fix, Change - Added, Fixed, Changed 아님)
+- 첫 글자 소문자
+- 끝에 마침표 없음
+- 50자 이내 권장
+
+### 예시
+```bash
+# 새 기능
+feat(branch명): MiderAnalyzer caching system 추가
+
+# 버그 수정
+fix(branch명): encoding issue 해결
+
+# 리팩토링
+refactor(branch명): rename SwingMate to Mider across all files
+
+# 문서
+docs: update CLAUDE.md with commit conventions
+
+# 복합 변경 (body 활용)
+**한국어로 작성**
+feat(ui): add tutorial mode with 8-step guide
+
+- Add interactive tutorial for new users
+- Support C, SQL, XML file analysis practice
+- Include progress tracking and skip functionality
+```
+
+### Breaking Changes
+하위 호환성을 깨는 변경은 footer에 `BREAKING CHANGE:` 추가:
+```
+refactor(core)!: rename MiderAnalyzer to MiderAnalyzer
+
+BREAKING CHANGE: All imports using MiderAnalyzer must be updated to MiderAnalyzer
+```
+
 ## 새로운 기능 상세 설명
 
 ### 📚 튜토리얼 모드 (개발 예정)
 
-**목적**: 처음 사용하는 사용자가 실제 파일로 Swing CLI의 주요 기능을 체험할 수 있는 대화형 가이드
+**목적**: 처음 사용하는 사용자가 실제 파일로 Mider의 주요 기능을 체험할 수 있는 대화형 가이드
 
 **기능**:
 - `test_with_fixtures.py` 기반의 실습 시나리오
@@ -265,28 +342,28 @@ class EditGuardRail:
 
 # 🚧 다음 세션 우선 작업 항목
 
-## 📋 **CoeAnalyzer 캐싱 시스템 구현**
+## 📋 **MiderAnalyzer 캐싱 시스템 구현**
 
 ### **🎯 구현 계획 단계:**
 
-#### **1단계: CoeAnalyzer 캐싱 시스템 설계 ✅**
+#### **1단계: MiderAnalyzer 캐싱 시스템 설계 ✅**
 - **목표**: Ask 모드에서 사용자가 구조 분석 요청 시 실행하고 결과 캐싱
 - **캐싱 범위**: RepoMap과 유사한 방식으로 파일별 분석 결과 저장
 - **트리거**: "구조 분석", "분석해줘", "어떤 파일이야" 등의 키워드 감지
 
-#### **2단계: Context Manager에 CoeAnalyzer 캐싱 추가**
+#### **2단계: Context Manager에 MiderAnalyzer 캐싱 추가**
 - **파일**: `cli/core/context_manager.py`
 - **기능 추가**:
   ```python
   class PromptBuilder:
       def __init__(self, task: str):
-          self._coe_analysis_cache = {}  # 파일별 CoeAnalyzer 결과 캐싱
+          self._coe_analysis_cache = {}  # 파일별 MiderAnalyzer 결과 캐싱
 
       def get_cached_coe_analysis(self, file_path: str) -> Optional[Dict]:
-          """캐싱된 CoeAnalyzer 분석 결과 반환"""
+          """캐싱된 MiderAnalyzer 분석 결과 반환"""
 
       def perform_coe_analysis_on_demand(self, file_path: str, file_manager) -> Dict:
-          """요청 시에만 CoeAnalyzer 실행하고 캐싱"""
+          """요청 시에만 MiderAnalyzer 실행하고 캐싱"""
   ```
 
 #### **3단계: Ask 모드 키워드 감지 시스템**
@@ -306,17 +383,17 @@ class EditGuardRail:
   1. 사용자 입력에서 구조 분석 키워드 감지
   2. 대상 파일 추출 (예: "ORDSS04S2050T01.c 구조 분석해줘")
   3. 해당 파일이 컨텍스트에 있는지 확인
-  4. CoeAnalyzer 실행 (캐시 확인 후 필요시에만)
+  4. MiderAnalyzer 실행 (캐시 확인 후 필요시에만)
   5. 분석 결과를 프롬프트에 포함하여 LLM 호출
 
-#### **5단계: 프롬프트에 CoeAnalyzer 결과 통합**
+#### **5단계: 프롬프트에 MiderAnalyzer 결과 통합**
 - **파일**: `cli/core/context_manager.py`의 `build()` 메서드
 - **기능**:
   ```python
   def build(self, user_input: str, file_context: Dict, history: List, file_manager=None) -> List:
       # 기존 로직...
 
-      # CoeAnalyzer 결과가 있으면 프롬프트에 추가
+      # MiderAnalyzer 결과가 있으면 프롬프트에 추가
       coe_analysis = self._get_relevant_coe_analysis(user_input, file_context)
       if coe_analysis:
           for file_path, analysis in coe_analysis.items():
@@ -325,11 +402,11 @@ class EditGuardRail:
   ```
 
 #### **6단계: 디버그 출력 및 캐시 상태 확인**
-- **기능**: 어떤 파일에 대해 CoeAnalyzer 결과가 캐싱되어 있는지 확인
+- **기능**: 어떤 파일에 대해 MiderAnalyzer 결과가 캐싱되어 있는지 확인
 - **명령어**: `/coe-cache` 또는 기존 `/files` 명령어에 통합
-- **디버그**: DebugManager에 CoeAnalyzer 관련 로깅 추가
+- **디버그**: DebugManager에 MiderAnalyzer 관련 로깅 추가
 
-### **🎨 CoeAnalyzer 캐싱 구조:**
+### **🎨 MiderAnalyzer 캐싱 구조:**
 ```python
 # context_manager.py
 class PromptBuilder:
@@ -352,11 +429,11 @@ class PromptBuilder:
 - `cli/core/context_manager.py` (주요 캐싱 로직)
 - `cli/main.py` (Ask 모드에서 분석 요청 처리)
 - `cli/ui/interactive.py` (키워드 감지 함수)
-- `cli/core/debug_manager.py` (CoeAnalyzer 디버그 출력)
+- `cli/core/debug_manager.py` (MiderAnalyzer 디버그 출력)
 
 ### **✅ 완료 조건:**
-- `/add` 시에는 CoeAnalyzer 실행하지 않음 (성능 개선)
-- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 CoeAnalyzer 실행
+- `/add` 시에는 MiderAnalyzer 실행하지 않음 (성능 개선)
+- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 MiderAnalyzer 실행
 - 분석 결과가 프롬프트에 포함되어 더 정확한 답변 제공
 - 캐싱으로 동일 파일 재분석 방지
 - RepoMap과 유사한 방식의 일관된 캐싱 시스템

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Swing CLI 실행 스크립트
+Mider 실행 스크립트
 환경변수를 로드한 후 메인 CLI를 실행합니다.
 """
 

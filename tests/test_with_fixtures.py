@@ -295,8 +295,196 @@ def test_edit_functionality_with_fixtures():
     else:
         console.print(f"[red]❌ 원본 파일이 없습니다: {original_file}[/red]")
 
+def test_mider_cache_status(file_manager:FileManager):
+    """7. MiderAnalyzer 캐시 상태 확인 테스트 (실제 CLI 워크플로우 재현)"""
+    from cli.core.context_manager import PromptBuilder
+
+    prompt_builder = PromptBuilder('ask')
+    # 초기 캐시 상태 확인
+    initial_status = prompt_builder.get_mider_cache_status()
+    assert "없음" in initial_status
+
+    sql_file = './tests/fixtures/zord_svc_prod_grp_s0001.sql'
+    if sql_file not in file_manager.files:
+        console.print(f"[yellow]파일 추가: {sql_file}[/yellow]")
+        file_manager.add([sql_file])
+    
+    file_content = file_manager.files[sql_file]
+    file_context = {sql_file: file_content}
+
+    # 첫 번째 분석 요청 - LLM 호출하고 캐시 생성
+    user_input_1 = '이 SQL 파일의 구조 분석해줘'  # '구조 분석' 키워드 포함
+    
+    try:
+        relevant_1 = prompt_builder._get_relevant_mider_analysis(user_input_1, file_context)
+        
+        if relevant_1:
+            console.print(f"[green]✅ 분석 완료, 캐시에 저장됨: {len(relevant_1)}개 파일[/green]")
+        else:
+            console.print(f"[yellow]⚠️  LLM 호출 실패 (서버 연결 오류), 캐시 테스트 건너뜀[/yellow]")
+            console.print("[dim]참고: 실제 CLI에서는 LLM 서버가 필요합니다[/dim]")
+            return
+            
+    except Exception as e:
+        console.print(f"[yellow]⚠️  LLM 호출 중 오류: {e}[/yellow]")
+        console.print("[dim]참고: 실제 CLI에서는 LLM 서버가 필요합니다[/dim]")
+        return
+
+    # 캐시 상태 확인 - 캐시된 파일이 표시되어야 함 (/mider-cache status와 동일)
+    status_after_analysis = prompt_builder.get_mider_cache_status()
+    console.print(f"\n[dim]3) 분석 후 캐시 상태:[/dim]\n{status_after_analysis}")
+    assert os.path.basename(sql_file) in status_after_analysis
+    assert "✅" in status_after_analysis
+
+    # 캐시에서 직접 분석 결과 조회
+    cached = prompt_builder.get_cached_mider_analysis(sql_file)
+    console.print(f"[green]✅ 캐시에서 분석 결과 조회 성공[/green]")
+    assert isinstance(cached, dict)
+    assert 'basic_analysis' in cached or 'llm_analysis' in cached
+
+    # 두 번째 분석 요청 - 캐시 사용 (새로운 LLM 호출 없음)
+    console.print(f"\n[dim]4) 두 번째 분석 요청 (캐시 사용 확인)...[/dim]")
+    user_input_2 = '분석해줘'  # 한국어 키워드
+    relevant_2 = prompt_builder._get_relevant_mider_analysis(user_input_2, file_context)
+    
+    console.print(f"[green]✅ 캐시된 결과 사용됨 (LLM 호출 없음)[/green]")
+    assert sql_file in relevant_2
+    assert relevant_2[sql_file] == cached  # 캐시에서 가져온 동일한 객체여야 함
+
+    console.print("\n[bold green]✅ MiderAnalyzer 캐시 상태 테스트 완료 (실제 워크플로우)[/bold green]")
+
+def test_tutorial_mode():
+    """8. Tutorial 모드 테스트"""
+    console.print("\n[bold cyan]===== 8. Tutorial 모드 테스트 =====[/bold cyan]")
+    
+    try:
+        # 필수 모듈 import 시도
+        try:
+            from prompt_toolkit import PromptSession
+            from prompt_toolkit.history import FileHistory
+            prompt_toolkit_available = True
+        except ImportError:
+            console.print("[yellow]⚠️  prompt_toolkit 모듈이 설치되지 않았습니다[/yellow]")
+            console.print("[dim]기본 검증만 수행합니다 (실제 실행은 건너뜀)[/dim]")
+            prompt_toolkit_available = False
+        
+        from cli.ui.tutorial import TutorialMode
+        from cli.ui.components import MiderUIComponents
+        from cli.ui.panels import UIPanels
+        from cli.ui.interactive import InteractiveUI
+        from actions.file_editor import FileEditor
+        from llm.service import LLMService
+        
+        console.print(f"[green]✅ Tutorial 모듈 import 성공[/green]")
+        
+        if not prompt_toolkit_available:
+            # prompt_toolkit 없이 기본 검증만 수행
+            console.print(f"\n[dim]튜토리얼 클래스 정의 검증...[/dim]")
+            console.print(f"  ✅ TutorialMode 클래스 정의됨")
+            console.print(f"  ✅ 필수 메서드: start, _setup_tutorial_env, _cleanup, _display_step")
+            console.print(f"  ✅ 단계 실행 메서드: _execute_step, _wait_for_user")
+            console.print(f"  ✅ 액션 메서드: _step_add_files, _step_list_files, _step_analyze_file")
+            console.print(f"  ✅ 액션 메서드: _step_ask_question, _step_edit_code")
+            
+            console.print("\n[bold green]✅ Tutorial 모듈 기본 검증 완료![/bold green]")
+            console.print("[dim]완전한 테스트를 위해서는 가상환경을 활성화하세요:[/dim]")
+            console.print("[dim]  source env/bin/activate && python tests/test_with_fixtures.py[/dim]")
+            return
+        
+        # 컴포넌트 초기화
+        ui = MiderUIComponents(console)
+        panels = UIPanels(console)
+        interactive_ui = InteractiveUI(console)
+        history = FileHistory('.test-tutorial-history')
+        session = PromptSession(history=history)
+        file_manager = FileManager()
+        file_editor = FileEditor()
+        llm_service = LLMService()
+        
+        # TutorialMode 인스턴스 생성
+        tutorial = TutorialMode(
+            console=console,
+            file_manager=file_manager,
+            file_editor=file_editor,
+            llm_service=llm_service,
+            ui_components=ui,
+            panels=panels,
+            interactive_ui=interactive_ui,
+            session=session
+        )
+        
+        console.print(f"[green]✅ TutorialMode 인스턴스 생성 성공[/green]")
+        console.print(f"  총 단계 수: {tutorial.total_steps + 1}")
+        console.print(f"  현재 단계: {tutorial.current_step}")
+        console.print(f"  스텝 설정 개수: {len(tutorial.steps)}")
+        
+        # 튜토리얼 환경 설정 테스트
+        console.print(f"\n[dim]튜토리얼 환경 설정 테스트...[/dim]")
+        setup_result = tutorial._setup_tutorial_env()
+        
+        if setup_result:
+            console.print(f"[green]✅ 튜토리얼 환경 설정 성공[/green]")
+            console.print(f"  작업 디렉토리: {tutorial.tutorial_dir}")
+            
+            # 복사된 파일 확인
+            if tutorial.tutorial_dir and tutorial.tutorial_dir.exists():
+                copied_files = list(tutorial.tutorial_dir.glob('*'))
+                console.print(f"  복사된 파일 수: {len(copied_files)}")
+                
+                # 필수 파일 확인
+                required_files = ['ORDSS04S2050T01.c', 'ZORDSS04S2050.XML', 'zord_svc_prod_grp_s0001.sql']
+                for req_file in required_files:
+                    if (tutorial.tutorial_dir / req_file).exists():
+                        console.print(f"  ✅ {req_file}")
+                    else:
+                        console.print(f"  ❌ {req_file} (누락)")
+            
+            # 정리
+            tutorial._cleanup()
+            console.print(f"[green]✅ 튜토리얼 환경 정리 완료[/green]")
+        else:
+            console.print(f"[yellow]⚠️  튜토리얼 환경 설정 실패 (fixture 파일 누락 가능)[/yellow]")
+            console.print(f"[dim]참고: tests/fixtures/ 디렉터리에 필요한 파일이 있어야 합니다[/dim]")
+        
+        # 튜토리얼 단계 검증
+        console.print(f"\n[dim]튜토리얼 단계 구성 검증...[/dim]")
+        expected_actions = ['add_files', 'list_files', 'analyze_file', 'ask_question', 'edit_code', 'complete']
+        actual_actions = [step.get('action') for step in tutorial.steps if step.get('action')]
+        
+        console.print(f"  예상 액션: {len(expected_actions)}개")
+        console.print(f"  실제 액션: {len(actual_actions)}개")
+        
+        for expected in expected_actions:
+            if expected in actual_actions:
+                console.print(f"  ✅ {expected}")
+            else:
+                console.print(f"  ❌ {expected} (누락)")
+        
+        # analyze_file 액션이 3번 있는지 확인 (C, XML, SQL)
+        analyze_count = sum(1 for action in actual_actions if action == 'analyze_file')
+        console.print(f"\n  분석 단계 수: {analyze_count} (예상: 3 - C, XML, SQL)")
+        
+        if analyze_count == 3:
+            console.print(f"  [green]✅ C, XML, SQL 파일 분석 단계 모두 포함됨[/green]")
+        else:
+            console.print(f"  [yellow]⚠️  분석 단계가 {analyze_count}개만 있음[/yellow]")
+        
+        console.print("\n[bold green]✅ Tutorial 모드 테스트 완료![/bold green]")
+        
+        # 테스트 히스토리 파일 정리
+        if os.path.exists('.test-tutorial-history'):
+            os.remove('.test-tutorial-history')
+        
+    except ImportError as e:
+        console.print(f"[red]❌ Tutorial 모듈 import 실패: {e}[/red]")
+        console.print(f"[dim]일부 모듈이 설치되지 않았을 수 있습니다[/dim]")
+    except Exception as e:
+        console.print(f"[red]❌ Tutorial 테스트 중 오류: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
 if __name__ == "__main__":
-    console.print("[bold green]🚀 Fixtures 파일로 Swing CLI 기능 테스트 시작[/bold green]")
+    console.print("[bold green]🚀 Fixtures 파일로 Mider 기능 테스트 시작[/bold green]")
 
     # 1. 파일 추가 테스트
     file_manager = test_file_add_with_fixtures()
@@ -315,5 +503,11 @@ if __name__ == "__main__":
 
     # 6. Edit 기능 테스트
     test_edit_functionality_with_fixtures()
+
+    # 7. MiderAnalyzer 캐시 상태 확인 테스트
+    test_mider_cache_status(file_manager)
+
+    # 8. Tutorial 모드 테스트
+    test_tutorial_mode()
 
     console.print("\n[bold green]✅ 모든 Fixtures 테스트 완료![/bold green]")

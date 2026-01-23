@@ -10,18 +10,17 @@ import json
 from pathlib import Path
 
 from actions.file_editor import FileEditor, EditOperation
-from cli.core.base_prompts import BasePrompts
 
 class BaseCoder(ABC):
     """모든 편집 전략의 기본 클래스"""
-    
+
     def __init__(self, file_editor: FileEditor):
         self.file_editor = file_editor
         self.strategy_name = self.__class__.__name__.replace('Coder', '').lower()
         self.prompts = self.get_prompts_class()
-        
+
     @abstractmethod
-    def get_prompts_class(self) -> BasePrompts:
+    def get_prompts_class(self) -> Any:
         """각 전략에 맞는 프롬프트 클래스를 반환"""
         pass
     

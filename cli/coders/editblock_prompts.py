@@ -1,9 +1,11 @@
 """
 EditBlock 전략용 프롬프트 - 특정 코드 블록만 교체하는 방식
 """
-from cli.core.base_prompts import BasePrompts
 
-class EditBlockPrompts(BasePrompts):
+class EditBlockPrompts:
+    """EditBlock 편집 전략용 프롬프트"""
+    example_messages = []
+
     main_system = """
 You are an expert software developer using the REPLACE editing strategy (inspired by Gemini CLI).
 

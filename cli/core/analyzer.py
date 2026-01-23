@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-코드 분석을 담당하는 CoeAnalyzer 클래스
+코드 분석을 담당하는 MiderAnalyzer 클래스
 파일 분석, LLM 기반 심화 분석, 결과 표시 등의 기능을 제공합니다.
 """
 
@@ -21,7 +21,7 @@ from rich.markdown import Markdown
 from .debug_manager import DebugManager
 
 
-class CoeAnalyzer:
+class MiderAnalyzer:
     def __init__(self):
         self.file_manager = FileManager()
         self.llm_service = LLMService()

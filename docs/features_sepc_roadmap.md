@@ -1,4 +1,4 @@
-# SwingMate 기능 명세서 (Architect 모드 추가 개편안)
+# Mider 기능 명세서 (Architect 모드 추가 개편안)
 
 ## 목차
 - [0. 핵심 개념](#0-핵심-개념)  
@@ -31,7 +31,7 @@
   `/resume` 명령으로 언제든 복원 가능.
 
 - **AGENTS.md 자동 생성**  
-  `swmate init` 시 프로젝트 컨텍스트 템플릿 자동 생성.  
+  `mider init` 시 프로젝트 컨텍스트 템플릿 자동 생성.  
   (도메인, 스택, 도구, 제약사항 기록 → 에이전트 이해도 향상)
 
 ---
@@ -39,8 +39,8 @@
 ## 1. 사용자 흐름 (Text-to-SQL 예시)
 
 ```bash
-swmate init
-  # .swmate/ 디렉터리 생성 및 AGENTS.md 템플릿 자동 생성
+mider init
+  # .mider/ 디렉터리 생성 및 AGENTS.md 템플릿 자동 생성
 
 /architect "유선 회선 기준으로 유무선 결합 가입년수 합산값 조회하는 쿼리 개발해줘"
   # 자연어 요청 → Plan 작성 → 단계별 편집/실행 제안
@@ -137,10 +137,10 @@ swmate init
 | `/architect` | Plan & Execute 모드 시작 |
 | `/tutorial` | 튜토리얼 모드 시작 |
 | `/watch <dir>` | 파일 변경 감시 및 자동 분석·테스트 |
-| `swmate test` | 명령줄에서 테스트 실행 |
-| `swmate diff` | 변경된 파일 diff 확인 |
-| `swmate patch` | 패치 적용 |
-| `swmate revert` | 변경 롤백 |
-| `swmate save-session` | 세션 저장 |
-| `swmate resume` | 세션 복원 |
+| `mider test` | 명령줄에서 테스트 실행 |
+| `mider diff` | 변경된 파일 diff 확인 |
+| `mider patch` | 패치 적용 |
+| `mider revert` | 변경 롤백 |
+| `mider save-session` | 세션 저장 |
+| `mider resume` | 세션 복원 |
 | `/continue` | 이전 세션 이어서 시작 |

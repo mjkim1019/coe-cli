@@ -14,8 +14,7 @@ from prompt_toolkit.history import FileHistory
 from actions.file_manager import FileManager
 from actions.file_editor import FileEditor
 from actions.template_manager import TemplateManager
-# AI 템플릿 어시스턴트 제거됨 (단순한 /new 명령어로 대체)
-#from actions.ai_template_assistant import AITemplateAssistant
+from actions.document_generator import DocumentGenerator
 from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
@@ -23,10 +22,13 @@ from cli.core.mcp_integration import MCPIntegration
 from cli.core.debug_manager import DebugManager
 from rich.console import Console
 from rich.panel import Panel
-from cli.ui.components import SwingUIComponents
+from rich.prompt import Confirm
+from cli.ui.components import MiderUIComponents
 from cli.ui.panels import UIPanels
 from cli.ui.formatters import ResponseFormatter
 from cli.ui.interactive import InteractiveUI
+from cli.ui.tutorial import TutorialMode
+from cli.architect import ArchitectMode
 
 # 편집 전략 import
 from cli.coders.base_coder import registry
@@ -34,18 +36,19 @@ from cli.coders import wholefile_coder, editblock_coder, udiff_coder
 
 @click.command()
 def main():
-    """An interactive REPL for the Swing LLM assistant."""
+    """An interactive REPL for the Mider LLM assistant."""
     console = Console()
-    ui = SwingUIComponents(console)
+    ui = MiderUIComponents(console)
     panels = UIPanels(console)
     formatter = ResponseFormatter(console)
     interactive_ui = InteractiveUI(console)
-    history = FileHistory('.swing-cli-history')
+    history = FileHistory('.mider-history')
     session = PromptSession(history=history, completer=PathCompleter())
     file_manager = FileManager()
     file_editor = FileEditor()
     llm_service = LLMService()
     template_manager = TemplateManager(llm_service=llm_service)
+    document_generator = DocumentGenerator(console=console)
     # AI 어시스턴트 제거됨
     chat_history = []
     
@@ -64,7 +67,12 @@ def main():
     edit_strategy = 'whole'  # 기본 편집 전략
     last_edit_response = None  # 마지막 edit 응답 저장
     last_user_request = None  # 마지막 사용자 요청 저장
-    current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더
+    current_coder = registry.get_coder(edit_strategy, file_editor)  # 현재 코더 
+    # 영구 PromptBuilder 인스턴스 (캐시 유지용)
+    prompt_builder = PromptBuilder('ask')
+    
+    # Architect Mode 초기화 (템플릿 매니저 포함)
+    architect_mode = ArchitectMode(console, llm_service, file_manager, file_editor, session, template_manager)
 
     # 웰컴 메시지
     interactive_ui.display_welcome_banner(task)
@@ -81,16 +89,103 @@ def main():
                 console.print(interactive_ui.display_help_panel())
                 continue
 
-            elif user_input.strip().lower().startswith('/repo'):
-                # PromptBuilder import를 블록 밖으로 이동
-                from cli.core.context_manager import PromptBuilder
+            elif user_input.strip().lower() == '/tutorial':
+                # Start tutorial mode
+                console.print(interactive_ui.display_tutorial_start_panel())
+                
+                try:
+                    tutorial = TutorialMode(
+                        console=console,
+                        file_manager=file_manager,
+                        file_editor=file_editor,
+                        llm_service=llm_service,
+                        ui_components=ui,
+                        panels=panels,
+                        interactive_ui=interactive_ui,
+                        session=session
+                    )
+                    tutorial.start()
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"튜토리얼 실행 중 오류: {e}"))
+                
+                continue
 
+            elif user_input.strip().lower().startswith('/architect '):
+                # Architect Mode - AI 작업 오케스트레이션
+                # 사용자 요청 추출 (/architect 뒤의 모든 내용)
+                request = user_input.strip()[11:].strip()  # '/architect ' 접두사 제거
+                
+                if not request:
+                    console.print(panels.create_error_panel("사용법: /architect \"자연어 요청\"\n예: /architect \"유선 회선 기준으로 유무선 결합 가입년수 합산값 조회하는 쿼리 개발해줘\""))
+                    continue
+                
+                try:
+                    # Architect 모드 실행
+                    plan = architect_mode.run(request)
+                    
+                    if plan:
+                        console.print(f"\n[bold green]✅ Architect Mode 완료![/bold green]")
+                        console.print(f"[dim]계획 ID: {plan.plan_id}[/dim]")
+                        console.print(f"[dim]상태: {plan.status}[/dim]")
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"Architect Mode 실행 중 오류: {e}"))
+                
+                continue
+
+            elif user_input.strip().lower() == '/resume':
+                # Resume - List and resume saved plans
+                try:
+                    plan_ids = architect_mode.list_plans()
+                    
+                    if not plan_ids:
+                        console.print("[yellow]저장된 계획이 없습니다.[/yellow]")
+                        continue
+                    
+                    # Show available plans
+                    console.print(Panel(
+                        "[bold cyan]📋 저장된 계획 목록[/bold cyan]",
+                        border_style="cyan"
+                    ))
+                    
+                    for idx, plan_id in enumerate(plan_ids[:10], 1):
+                        console.print(f"  {idx}. [cyan]{plan_id}[/cyan]")
+                    
+                    if len(plan_ids) > 10:
+                        console.print(f"\n  [dim]... and {len(plan_ids) - 10} more plans[/dim]")
+                    
+                    # Ask user to select
+                    console.print("\n[bold]계획을 선택하세요 (번호 입력):[/bold]")
+                    choice = session.prompt("선택 > ")
+                    
+                    try:
+                        idx = int(choice.strip())
+                        if 1 <= idx <= min(10, len(plan_ids)):
+                            selected_plan_id = plan_ids[idx - 1]
+                            
+                            # Load and show plan
+                            plan = architect_mode.load_plan(selected_plan_id)
+                            
+                            if plan:
+                                architect_mode.visualize_plan(plan)
+                                
+                                # Ask if user wants to re-execute
+                                if Confirm.ask("\n이 계획을 다시 실행하시겠습니까?", default=False, console=console):
+                                    architect_mode.execute_plan(plan)
+                                    architect_mode.save_plan(plan)
+                        else:
+                            console.print("[red]잘못된 선택입니다.[/red]")
+                    except ValueError:
+                        console.print("[red]숫자를 입력해주세요.[/red]")
+                        
+                except Exception as e:
+                    console.print(panels.create_error_panel(f"Resume 실행 중 오류: {e}"))
+                
+                continue
+
+            elif user_input.strip().lower().startswith('/repo'):
                 parts = user_input.strip().split()
                 if len(parts) > 1:
                     target_files = [p.replace('@', '') for p in parts[1:]]
-
-                    # PromptBuilder 인스턴스 생성 (ask용)
-                    prompt_builder = PromptBuilder('ask')
 
                     # 수동으로 레포맵 생성
                     repo_map = prompt_builder.generate_repo_map_manually(target_files, file_manager)
@@ -102,10 +197,24 @@ def main():
                         console.print("[red]•  RepoMap 생성에 실패했습니다.[/red]")
                 else:
                     # 상태 확인
-                    prompt_builder = PromptBuilder('ask')
                     status = prompt_builder.get_repo_map_status()
                     console.print(f"[cyan]•  RepoMap 상태: {status}[/cyan]")
                     console.print("[dim]사용법: /repo <파일1> <파일2> ... 또는 /repo (상태 확인)[/dim]")
+                continue
+
+            elif user_input.strip().lower().startswith('/mider-cache'):
+                # MiderAnalyzer 캐시 상태 확인
+                parts = user_input.strip().split()
+                if len(parts) == 1 or (len(parts) == 2 and parts[1] == 'status'):
+                    # 캐시 상태 확인
+                    status = prompt_builder.get_mider_cache_status()
+                    console.print(f"[cyan]•  MiderAnalyzer 캐시 상태:[/cyan]")
+                    console.print(status)
+                    continue
+                
+            elif user_input.strip().lower() == 'mider init':
+                # 프로젝트 초기화 - AGENTS.md 문서 생성
+                document_generator.init_project()
                 continue
 
             elif user_input.strip().lower().startswith('/add '):
@@ -435,7 +544,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/mider-cache', '/tutorial', '/architect', '/resume']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -450,8 +559,8 @@ def main():
                 # 일반 사용자 입력 - AI에게 전달 (의도 분석 없이 바로 처리)
                 interactive_ui.display_separator()
 
-            # Build the prompt using MCP-integrated PromptBuilder
-            prompt_builder = mcp_integration.create_prompt_builder(task)
+            # Build the prompt using persistent PromptBuilder (캐시 유지)
+            prompt_builder.set_task(task)  # task 모드만 변경 (캐시는 유지)
             messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
             # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
@@ -531,8 +640,8 @@ def main():
                     if preview and 'error' not in preview and preview:
                         console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
                         try:
-                            from cli.core.analyzer import CoeAnalyzer
-                            analyzer = CoeAnalyzer()
+                            from cli.core.analyzer import MiderAnalyzer
+                            analyzer = MiderAnalyzer()
                             
                             # 수정될 파일들 추출
                             modified_files = list(preview.keys())

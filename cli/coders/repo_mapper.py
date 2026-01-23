@@ -1,6 +1,6 @@
 """
 RepoMapper - baseCoder를 위한 경량 레포지토리 맵 생성기
-Aider의 repomap 기능을 참고하여 Swing CLI에 최적화
+Aider의 repomap 기능을 참고하여 Mider에 최적화
 """
 import os
 import re
