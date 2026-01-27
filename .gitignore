@@ -17,6 +17,7 @@ venv/
 
 # Environment variables
 .env
+.mcp.json
 
 # Tests
 .pytest_cache/
@@ -28,6 +29,8 @@ templates/
 # 실행파일 및 Command history
 dist/
 build/
-.coe-cli-history
-.swing-cli-history
-.swing_backups
+.mider-history
+.mider_backups
+state.json
+
+
