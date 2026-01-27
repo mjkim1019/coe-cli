@@ -15,7 +15,7 @@ class DocumentGenerator:
     def __init__(self, console: Console = None):
         self.console = console or Console()
         self.templates_dir = Path(__file__).parent.parent / '.mider'
-        
+
     def generate_agents_md(self, project_name: str = None, project_description: str = None) -> bool:
         """AGENTS.md 파일을 템플릿으로부터 생성"""
         try:
@@ -89,6 +89,7 @@ class DocumentGenerator:
                     "[white]생성된 파일:[/white]\n"
                     "  • AGENTS.md - AI 에이전트 역할 및 협업 규칙\n\n"
                     "[dim]이제 Mider를 사용하여 코드를 분석하고 수정할 수 있습니다.[/dim]",
+
                     title="성공",
                     border_style="green",
                     padding=(1, 2)

@@ -57,9 +57,6 @@ def main():
     # 수정 의도 감지 시 자동 apply 플래그
     modification_auto_apply = False
     
-    # 의도 분석 함수들 제거됨 (단순화)
-    
-    
     # MCP 통합 초기화
     mcp_integration = MCPIntegration()
     mcp_integration.initialize(console)
