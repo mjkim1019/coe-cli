@@ -17,6 +17,7 @@ venv/
 
 # Environment variables
 .env
+.mcp.json
 
 # Tests
 .pytest_cache/
@@ -28,6 +29,35 @@ templates/
 # 실행파일 및 Command history
 dist/
 build/
+.mider-history
+.mider_backups
+# Legacy (deprecated)
 .coe-cli-history
 .swing-cli-history
 .swing_backups
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task Master AI
+.taskmaster/reports/
+.taskmaster/state.json
+state.json
+
+

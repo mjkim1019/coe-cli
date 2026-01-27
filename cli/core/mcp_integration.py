@@ -1,5 +1,5 @@
 """
-MCP Integration for Swing CLI
+MCP Integration for Mider
 기존 LLM 서비스와 MCP를 연동하는 통합 모듈
 """
 
@@ -60,7 +60,7 @@ class MCPPromptBuilder(PromptBuilder):
 
 
 class MCPIntegration:
-    """Swing CLI와 MCP의 통합 관리"""
+    """Mider와 MCP의 통합 관리"""
     
     def __init__(self, mcp_base_url: str = "http://greatcoe.cafe24.com:9000"):
         self.mcp_client = MCPClient(mcp_base_url)

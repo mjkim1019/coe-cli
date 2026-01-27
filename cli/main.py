@@ -15,8 +15,6 @@ from actions.file_manager import FileManager
 from actions.file_editor import FileEditor
 from actions.template_manager import TemplateManager
 from actions.document_generator import DocumentGenerator
-# AI 템플릿 어시스턴트 제거됨 (단순한 /new 명령어로 대체)
-#from actions.ai_template_assistant import AITemplateAssistant
 from cli.completer import PathCompleter
 from llm.service import LLMService
 from cli.core.context_manager import PromptBuilder
@@ -25,12 +23,12 @@ from cli.core.debug_manager import DebugManager
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
-from cli.ui.components import SwingUIComponents
+from cli.ui.components import MiderUIComponents
 from cli.ui.panels import UIPanels
 from cli.ui.formatters import ResponseFormatter
 from cli.ui.interactive import InteractiveUI
 from cli.ui.tutorial import TutorialMode
-from cli.core.architect_mode import ArchitectMode
+from cli.architect import ArchitectMode
 
 # 편집 전략 import
 from cli.coders.base_coder import registry
@@ -38,13 +36,13 @@ from cli.coders import wholefile_coder, editblock_coder, udiff_coder
 
 @click.command()
 def main():
-    """An interactive REPL for the Swing LLM assistant."""
+    """An interactive REPL for the Mider LLM assistant."""
     console = Console()
-    ui = SwingUIComponents(console)
+    ui = MiderUIComponents(console)
     panels = UIPanels(console)
     formatter = ResponseFormatter(console)
     interactive_ui = InteractiveUI(console)
-    history = FileHistory('.swing-cli-history')
+    history = FileHistory('.mider-history')
     session = PromptSession(history=history, completer=PathCompleter())
     file_manager = FileManager()
     file_editor = FileEditor()
@@ -58,9 +56,6 @@ def main():
     
     # 수정 의도 감지 시 자동 apply 플래그
     modification_auto_apply = False
-    
-    # 의도 분석 함수들 제거됨 (단순화)
-    
     
     # MCP 통합 초기화
     mcp_integration = MCPIntegration()
@@ -204,17 +199,17 @@ def main():
                     console.print("[dim]사용법: /repo <파일1> <파일2> ... 또는 /repo (상태 확인)[/dim]")
                 continue
 
-            elif user_input.strip().lower().startswith('/swmate-cache'):
-                # SWMateAnalyzer 캐시 상태 확인
+            elif user_input.strip().lower().startswith('/mider-cache'):
+                # MiderAnalyzer 캐시 상태 확인
                 parts = user_input.strip().split()
                 if len(parts) == 1 or (len(parts) == 2 and parts[1] == 'status'):
                     # 캐시 상태 확인
-                    status = prompt_builder.get_swmate_cache_status()
-                    console.print(f"[cyan]•  SWMateAnalyzer 캐시 상태:[/cyan]")
+                    status = prompt_builder.get_mider_cache_status()
+                    console.print(f"[cyan]•  MiderAnalyzer 캐시 상태:[/cyan]")
                     console.print(status)
                     continue
                 
-            elif user_input.strip().lower() == 'swmate init':
+            elif user_input.strip().lower() == 'mider init':
                 # 프로젝트 초기화 - AGENTS.md 문서 생성
                 document_generator.init_project()
                 continue
@@ -546,7 +541,7 @@ def main():
             # 잘못된 명령어 처리 (/ 로 시작하지만 알려진 명령어가 아닌 경우)
             elif user_input.startswith('/'):
                 known_commands = ['/add', '/files', '/tree', '/info', '/clear', '/preview', '/apply',
-                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial', '/architect', '/resume']
+                                '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/repo', '/help', '/exit', '/quit', '/mider-cache', '/tutorial', '/architect', '/resume']
                 
                 # 명령어 부분만 추출 (공백 전까지)
                 command_part = user_input.split()[0].lower()
@@ -642,8 +637,8 @@ def main():
                     if preview and 'error' not in preview and preview:
                         console.print("\n[bold blue]🔍 수정된 파일에 대한 자동 분석을 수행합니다...[/bold blue]")
                         try:
-                            from cli.core.analyzer import CoeAnalyzer
-                            analyzer = CoeAnalyzer()
+                            from cli.core.analyzer import MiderAnalyzer
+                            analyzer = MiderAnalyzer()
                             
                             # 수정될 파일들 추출
                             modified_files = list(preview.keys())

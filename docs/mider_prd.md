@@ -1,7 +1,7 @@
-# Swing CLI – Product Requirements Document (PRD)
+# Mider – Product Requirements Document (PRD)
 
 ## 1. 제품 개요
-`Swing CLI`는 대화형 CLI 도구로, 개발자가 코드에 대해 **질문**, **수정**, **테스트**, **구조 분석**을 할 수 있도록 지원합니다.  
+`Mider`는 대화형 CLI 도구로, 개발자가 코드에 대해 **질문**, **수정**, **테스트**, **구조 분석**을 할 수 있도록 지원합니다.  
 LLM(대규모 언어 모델) 백엔드를 통해 파일을 분석하고, 다양한 언어(C, SQL, XML 등)에 특화된 분석 결과를 제공합니다.
 
 ---
@@ -178,28 +178,28 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
 
 # 🚧 다음 세션 우선 작업 항목
 
-## 📋 **CoeAnalyzer 캐싱 시스템 구현**
+## 📋 **MiderAnalyzer 캐싱 시스템 구현**
 
 ### **🎯 구현 계획 단계:**
 
-#### **1단계: CoeAnalyzer 캐싱 시스템 설계 ✅**
+#### **1단계: MiderAnalyzer 캐싱 시스템 설계 ✅**
 - **목표**: Ask 모드에서 사용자가 구조 분석 요청 시 실행하고 결과 캐싱
 - **캐싱 범위**: RepoMap과 유사한 방식으로 파일별 분석 결과 저장
 - **트리거**: "구조 분석", "분석해줘", "어떤 파일이야" 등의 키워드 감지
 
-#### **2단계: Context Manager에 CoeAnalyzer 캐싱 추가**
+#### **2단계: Context Manager에 MiderAnalyzer 캐싱 추가**
 - **파일**: `cli/core/context_manager.py`
 - **기능 추가**:
   ```python
   class PromptBuilder:
       def __init__(self, task: str):
-          self._coe_analysis_cache = {}  # 파일별 CoeAnalyzer 결과 캐싱
+          self._coe_analysis_cache = {}  # 파일별 MiderAnalyzer 결과 캐싱
 
       def get_cached_coe_analysis(self, file_path: str) -> Optional[Dict]:
-          """캐싱된 CoeAnalyzer 분석 결과 반환"""
+          """캐싱된 MiderAnalyzer 분석 결과 반환"""
 
       def perform_coe_analysis_on_demand(self, file_path: str, file_manager) -> Dict:
-          """요청 시에만 CoeAnalyzer 실행하고 캐싱"""
+          """요청 시에만 MiderAnalyzer 실행하고 캐싱"""
   ```
 
 #### **3단계: Ask 모드 키워드 감지 시스템**
@@ -219,17 +219,17 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
   1. 사용자 입력에서 구조 분석 키워드 감지
   2. 대상 파일 추출 (예: "ORDSS04S2050T01.c 구조 분석해줘")
   3. 해당 파일이 컨텍스트에 있는지 확인
-  4. CoeAnalyzer 실행 (캐시 확인 후 필요시에만)
+  4. MiderAnalyzer 실행 (캐시 확인 후 필요시에만)
   5. 분석 결과를 프롬프트에 포함하여 LLM 호출
 
-#### **5단계: 프롬프트에 CoeAnalyzer 결과 통합**
+#### **5단계: 프롬프트에 MiderAnalyzer 결과 통합**
 - **파일**: `cli/core/context_manager.py`의 `build()` 메서드
 - **기능**:
   ```python
   def build(self, user_input: str, file_context: Dict, history: List, file_manager=None) -> List:
       # 기존 로직...
 
-      # CoeAnalyzer 결과가 있으면 프롬프트에 추가
+      # MiderAnalyzer 결과가 있으면 프롬프트에 추가
       coe_analysis = self._get_relevant_coe_analysis(user_input, file_context)
       if coe_analysis:
           for file_path, analysis in coe_analysis.items():
@@ -238,11 +238,11 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
   ```
 
 #### **6단계: 디버그 출력 및 캐시 상태 확인**
-- **기능**: 어떤 파일에 대해 CoeAnalyzer 결과가 캐싱되어 있는지 확인
+- **기능**: 어떤 파일에 대해 MiderAnalyzer 결과가 캐싱되어 있는지 확인
 - **명령어**: `/coe-cache` 또는 기존 `/files` 명령어에 통합
-- **디버그**: DebugManager에 CoeAnalyzer 관련 로깅 추가
+- **디버그**: DebugManager에 MiderAnalyzer 관련 로깅 추가
 
-### **🎨 CoeAnalyzer 캐싱 구조:**
+### **🎨 MiderAnalyzer 캐싱 구조:**
 ```python
 # context_manager.py
 class PromptBuilder:
@@ -265,11 +265,11 @@ class PromptBuilder:
 - `cli/core/context_manager.py` (주요 캐싱 로직)
 - `cli/main.py` (Ask 모드에서 분석 요청 처리)
 - `cli/ui/interactive.py` (키워드 감지 함수)
-- `cli/core/debug_manager.py` (CoeAnalyzer 디버그 출력)
+- `cli/core/debug_manager.py` (MiderAnalyzer 디버그 출력)
 
 ### **✅ 완료 조건:**
-- `/add` 시에는 CoeAnalyzer 실행하지 않음 (성능 개선)
-- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 CoeAnalyzer 실행
+- `/add` 시에는 MiderAnalyzer 실행하지 않음 (성능 개선)
+- Ask 모드에서 구조 분석 키워드 감지 시 자동으로 MiderAnalyzer 실행
 - 분석 결과가 프롬프트에 포함되어 더 정확한 답변 제공
 - 캐싱으로 동일 파일 재분석 방지
 - RepoMap과 유사한 방식의 일관된 캐싱 시스템

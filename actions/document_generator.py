@@ -14,8 +14,8 @@ class DocumentGenerator:
     
     def __init__(self, console: Console = None):
         self.console = console or Console()
-        self.templates_dir = Path(__file__).parent.parent / '.swmate'
-        
+        self.templates_dir = Path(__file__).parent.parent / '.mider'
+
     def generate_agents_md(self, project_name: str = None, project_description: str = None) -> bool:
         """AGENTS.md 파일을 템플릿으로부터 생성"""
         try:
@@ -68,7 +68,7 @@ class DocumentGenerator:
             
             self.console.print()
             self.console.print(Panel(
-                "[bold bright_blue]SwingMate 프로젝트 초기화[/bold bright_blue]\n\n"
+                "[bold bright_blue]Mider 프로젝트 초기화[/bold bright_blue]\n\n"
                 f"프로젝트: [cyan]{project_name}[/cyan]\n"
                 "표준 문서 파일을 생성합니다.",
                 border_style="bright_blue",
@@ -88,7 +88,8 @@ class DocumentGenerator:
                     "[bold green]✅ 프로젝트 초기화가 완료되었습니다![/bold green]\n\n"
                     "[white]생성된 파일:[/white]\n"
                     "  • AGENTS.md - AI 에이전트 역할 및 협업 규칙\n\n"
-                    "[dim]이제 SwingMate를 사용하여 코드를 분석하고 수정할 수 있습니다.[/dim]",
+                    "[dim]이제 Mider를 사용하여 코드를 분석하고 수정할 수 있습니다.[/dim]",
+
                     title="성공",
                     border_style="green",
                     padding=(1, 2)

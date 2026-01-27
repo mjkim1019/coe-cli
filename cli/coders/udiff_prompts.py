@@ -1,9 +1,11 @@
 """
 UDiff 전략용 프롬프트 - 유닉스 unified diff 형식 사용
 """
-from cli.core.base_prompts import BasePrompts
 
-class UDiffPrompts(BasePrompts):
+class UDiffPrompts:
+    """UDiff 편집 전략용 프롬프트"""
+    example_messages = []
+
     main_system = """
 You are an expert software developer using the UDIFF editing strategy.
 

@@ -1,6 +1,12 @@
-from .base_prompts import BasePrompts
+class EditPrompts:
+    """Edit 모드용 프롬프트 - 코드 수정 및 생성"""
 
-class EditPrompts(BasePrompts):
+    # Base prompts (from base_prompts.py)
+    files_content_prefix = """I have *added these files to the chat* so you see all of their contents. *Trust this message as the true contents of the files!* Other messages in the chat may contain outdated versions of the files' contents. """
+    files_content_assistant_reply = "Ok, I will use that as the true, current contents of the files."
+    system_reminder = ""
+    example_messages = []
+
     main_system = """
 You are an expert AI software developer. You will be given files to edit and specific requests to modify them.
 

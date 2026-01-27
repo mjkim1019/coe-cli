@@ -59,7 +59,7 @@ class InteractiveUI:
         
         # 점진적으로 배너 표시
         self.console.print()
-        with self.console.status("[bright_white]• Loading Swing CLI...", spinner="dots"):
+        with self.console.status("[bright_white]• Loading Mider...", spinner="dots"):
             time.sleep(1)
         
         self.console.print(main_panel)
@@ -104,7 +104,7 @@ class InteractiveUI:
         
         return Panel(
             "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
-            "실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 학습합니다.",
+            "실제 파일을 사용하여 Mider의 주요 기능을 단계별로 학습합니다.",
             title="🎓 튜토리얼 모드",
             border_style="cyan"
         )
@@ -123,8 +123,8 @@ class InteractiveUI:
 [yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
 [yellow]/repo[/yellow] <file1> <file2> ... - 지정한 파일들로 Repository Map 생성 (질문 시 자동 포함)
 [yellow]/repo[/yellow] - 현재 Repository Map 상태 확인
-[yellow]/swmate-cache status[/yellow] - SWMateAnalyzer 캐시 상태 확인
-[yellow]swmate init[/yellow] - AGENTS.md 문서로 프로젝트 초기화
+[yellow]/mider-cache status[/yellow] - MiderAnalyzer 캐시 상태 확인
+[yellow]mider init[/yellow] - AGENTS.md 문서로 프로젝트 초기화
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 
@@ -192,7 +192,7 @@ class InteractiveUI:
         from rich.panel import Panel
         
         known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
-                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit', '/swmate-cache', '/tutorial']
+                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit', '/mider-cache', '/tutorial']
         
         if command_part not in [cmd.lower() for cmd in known_commands]:
             error_panel = Panel(
@@ -200,7 +200,7 @@ class InteractiveUI:
                 f"[white]• 사용 가능한 명령어:[/white]\n"
                 f"[dim white]• 튜토리얼: /tutorial[/dim white]\n"
                 f"[dim white]• 파일 관리: /add, /files, /tree, /analyze, /info, /clear[/dim white]\n"
-                f"[dim white]• 분석 도구: /repo, /swmate-cache[/dim white]\n"
+                f"[dim white]• 분석 도구: /repo, /mider-cache[/dim white]\n"
                 f"[dim white]• 모드 전환: /ask, /edit[/dim white]\n"
                 f"[dim white]• 편집 기능: /preview, /apply, /history, /rollback, /debug[/dim white]\n"
                 f"[dim white]• 세션 관리: /session, /session-reset[/dim white]\n"

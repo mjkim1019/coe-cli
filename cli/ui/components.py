@@ -20,7 +20,7 @@ import time
 import os
 from datetime import datetime
 
-class SwingUIComponents:
+class MiderUIComponents:
     def __init__(self, console: Console):
         self.console = console
 
@@ -46,7 +46,7 @@ class SwingUIComponents:
         
         # 점진적으로 배너 표시
         self.console.print()
-        with self.console.status("[bold bright_cyan]🚀 Loading Swing CLI...", spinner="aesthetic"):
+        with self.console.status("[bold bright_cyan]🚀 Loading Mider...", spinner="aesthetic"):
             time.sleep(1)
         
         self.console.print(main_panel)

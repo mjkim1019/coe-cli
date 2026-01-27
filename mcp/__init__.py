@@ -1,5 +1,5 @@
 """
-MCP (Model Context Protocol) integration module for Swing CLI
+MCP (Model Context Protocol) integration module for Mider
 """
 
 from .client import MCPClient

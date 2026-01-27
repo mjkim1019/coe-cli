@@ -6,7 +6,7 @@ import json
 from io import StringIO
 from rich.console import Console
 
-from .analyzer import CoeAnalyzer
+from .analyzer import MiderAnalyzer
 from ..ui.interactive import analysis_keywords
 from .debug_manager import DebugManager
 
@@ -17,8 +17,8 @@ class PromptBuilder:
         # RepoMap 캐싱용 저장소
         self._repo_map_cache = {}
         self._cache_key = None
-        # SWMateAnalyzer 캐싱용 저장소
-        self._swmate_analysis_cache = {}
+        # MiderAnalyzer 캐싱용 저장소
+        self._mider_analysis_cache = {}
 
     def _load_prompt_class(self):
         try:
@@ -68,20 +68,20 @@ class PromptBuilder:
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
 
-                # 상세 구조 분석 정보 추가 (백그라운드에서 CoeAnalyzer 사용)
+                # 상세 구조 분석 정보 추가 (백그라운드에서 MiderAnalyzer 사용)
                 detailed_analysis = self._get_detailed_analysis(file_path, content)
                 if detailed_analysis:
                     file_str += f"\n\n{detailed_analysis}"
 
                 messages.append({"role": "system", "content": file_str})
 
-        # 4. Add SWMateAnalyzer results if available (for structure analysis requests)
-        swmate_analysis = self._get_relevant_swmate_analysis(user_input, file_context)
-        if swmate_analysis:
-            for file_path, analysis in swmate_analysis.items():
+        # 4. Add MiderAnalyzer results if available (for structure analysis requests)
+        mider_analysis = self._get_relevant_mider_analysis(user_input, file_context)
+        if mider_analysis:
+            for file_path, analysis in mider_analysis.items():
                 analysis_str = f"File Structure Analysis for {file_path}:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}"
                 messages.append({"role": "system", "content": analysis_str})
-                DebugManager.swmate_analyzer(f"SWMateAnalyzer 결과를 프롬프트에 포함: {file_path}")
+                DebugManager.mider_analyzer(f"MiderAnalyzer 결과를 프롬프트에 포함: {file_path}")
 
         # 4. Add existing history
         messages.extend(history)
@@ -105,9 +105,9 @@ class PromptBuilder:
         return messages
 
     def _get_detailed_analysis(self, file_path, content):
-        """CoeAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
+        """MiderAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
         try:
-            from .analyzer import CoeAnalyzer
+            from .analyzer import MiderAnalyzer
             import tempfile
             import os
             
@@ -117,8 +117,8 @@ class PromptBuilder:
                 tmp_path = tmp_file.name
             
             try:
-                # CoeAnalyzer로 분석 (화면 출력 없이)
-                analyzer = CoeAnalyzer()
+                # MiderAnalyzer로 분석 (화면 출력 없이)
+                analyzer = MiderAnalyzer()
                 # console 출력을 비활성화하기 위해 quiet 모드로 분석
                 original_console = analyzer.console
                 from rich.console import Console
@@ -419,20 +419,20 @@ class PromptBuilder:
 
         return f"✅ 캐시된 레포맵: {cache_count}개, 최신 크기: {latest_size} chars"
 
-    def get_cached_swmate_analysis(self, file_path: str):
-        """캐싱된 SWMateAnalyzer 분석 결과 반환"""
-        if file_path in self._swmate_analysis_cache:
-            cached_data = self._swmate_analysis_cache[file_path]
-            DebugManager.swmate_analyzer(f"✅ 캐시된 SWMateAnalyzer 결과 사용: {file_path}")
+    def get_cached_mider_analysis(self, file_path: str):
+        """캐싱된 MiderAnalyzer 분석 결과 반환"""
+        if file_path in self._mider_analysis_cache:
+            cached_data = self._mider_analysis_cache[file_path]
+            DebugManager.mider_analyzer(f"✅ 캐시된 MiderAnalyzer 결과 사용: {file_path}")
             return cached_data.get('analysis')
         return None
 
-    def perform_swmate_analysis_on_demand(self, file_path: str, file_content: str, file_manager=None):
-        """요청 시에만 SWMateAnalyzer 실행하고 캐싱"""
+    def perform_mider_analysis_on_demand(self, file_path: str, file_content: str, file_manager=None):
+        """요청 시에만 MiderAnalyzer 실행하고 캐싱"""
         try:
-            DebugManager.swmate_analyzer(f"SWMateAnalyzer 실행 시작: {file_path}")
-            # CoeAnalyzer 인스턴스 생성
-            analyzer = CoeAnalyzer()
+            DebugManager.mider_analyzer(f"MiderAnalyzer 실행 시작: {file_path}")
+            # MiderAnalyzer 인스턴스 생성
+            analyzer = MiderAnalyzer()
             # 임시 파일 생성하여 분석 (기존 _get_detailed_analysis 로직 참고)
             with tempfile.NamedTemporaryFile(mode='w', suffix=os.path.splitext(file_path)[1], delete=False, encoding='utf-8') as tmp_file:
                 tmp_file.write(file_content)
@@ -466,12 +466,12 @@ class PromptBuilder:
                         }
                     }
 
-                    self._swmate_analysis_cache[file_path] = cache_data
+                    self._mider_analysis_cache[file_path] = cache_data
 
-                    DebugManager.swmate_analyzer(f"✅ SWMateAnalyzer 분석 완료 및 캐시 저장: {file_path}")
+                    DebugManager.mider_analyzer(f"✅ MiderAnalyzer 분석 완료 및 캐시 저장: {file_path}")
                     return cache_data['analysis']
                 else:
-                    DebugManager.swmate_analyzer(f"❌ SWMateAnalyzer 분석 결과 없음: {file_path}")
+                    DebugManager.mider_analyzer(f"❌ MiderAnalyzer 분석 결과 없음: {file_path}")
                     return None
 
             finally:
@@ -479,27 +479,27 @@ class PromptBuilder:
                 os.unlink(tmp_path)
 
         except Exception as e:
-            DebugManager.error(f"SWMateAnalyzer 분석 실패 ({file_path}): {e}")
+            DebugManager.error(f"MiderAnalyzer 분석 실패 ({file_path}): {e}")
             return None
 
-    def get_swmate_cache_status(self):
-        """SWMateAnalyzer 캐시 상태 확인"""
-        if not self._swmate_analysis_cache:
-            return "❌ 캐시된 SWMateAnalyzer 분석 결과 없음"
+    def get_mider_cache_status(self):
+        """MiderAnalyzer 캐시 상태 확인"""
+        if not self._mider_analysis_cache:
+            return "❌ 캐시된 MiderAnalyzer 분석 결과 없음"
 
-        cache_count = len(self._swmate_analysis_cache)
-        cached_files = list(self._swmate_analysis_cache.keys())
+        cache_count = len(self._mider_analysis_cache)
+        cached_files = list(self._mider_analysis_cache.keys())
 
-        status = f"✅ 캐시된 SWMateAnalyzer 분석: {cache_count}개 파일\n"
+        status = f"✅ 캐시된 MiderAnalyzer 분석: {cache_count}개 파일\n"
         for file_path in cached_files:
             filename = os.path.basename(file_path)
-            timestamp = self._swmate_analysis_cache[file_path].get('timestamp', 'unknown')
+            timestamp = self._mider_analysis_cache[file_path].get('timestamp', 'unknown')
             status += f"  • {filename} ({timestamp})\n"
 
         return status.strip()
 
-    def _get_relevant_swmate_analysis(self, user_input: str, file_context: dict):
-        """사용자 입력과 파일 컨텍스트를 기반으로 관련된 SWMateAnalyzer 분석 결과 반환"""
+    def _get_relevant_mider_analysis(self, user_input: str, file_context: dict):
+        """사용자 입력과 파일 컨텍스트를 기반으로 관련된 MiderAnalyzer 분석 결과 반환"""
         # 구조 분석 키워드 감지
    
         has_analysis_request = any(keyword in user_input.lower() for keyword in analysis_keywords)
@@ -507,27 +507,27 @@ class PromptBuilder:
         if not has_analysis_request:
             return {}
 
-        DebugManager.swmate_analyzer(f"구조 분석 키워드 감지됨: {user_input[:50]}...")
+        DebugManager.mider_analyzer(f"구조 분석 키워드 감지됨: {user_input[:50]}...")
 
-        # 분석 요청이 감지된 경우, 컨텍스트의 모든 파일에 대해 SWMateAnalyzer 결과 확인
+        # 분석 요청이 감지된 경우, 컨텍스트의 모든 파일에 대해 MiderAnalyzer 결과 확인
         relevant_analysis = {}
 
         if file_context:
             for file_path, content in file_context.items():
                 # 캐시된 결과 확인
-                cached_analysis = self.get_cached_swmate_analysis(file_path)
+                cached_analysis = self.get_cached_mider_analysis(file_path)
 
                 if cached_analysis:
                     relevant_analysis[file_path] = cached_analysis
                 else:
                     # 캐시에 없으면 새로 분석 수행
-                    DebugManager.swmate_analyzer(f"SWMateAnalyzer 새 분석 수행: {file_path}")
-                    new_analysis = self.perform_swmate_analysis_on_demand(file_path, content, None)
+                    DebugManager.mider_analyzer(f"MiderAnalyzer 새 분석 수행: {file_path}")
+                    new_analysis = self.perform_mider_analysis_on_demand(file_path, content, None)
                     if new_analysis:
                         relevant_analysis[file_path] = new_analysis
 
         if relevant_analysis:
-            DebugManager.swmate_analyzer(f"SWMateAnalyzer 분석 결과 {len(relevant_analysis)}개 파일에 대해 프롬프트에 포함")
+            DebugManager.mider_analyzer(f"MiderAnalyzer 분석 결과 {len(relevant_analysis)}개 파일에 대해 프롬프트에 포함")
 
         return relevant_analysis
 

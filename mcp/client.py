@@ -1,5 +1,5 @@
 """
-HTTP-based MCP Client for Swing CLI
+HTTP-based MCP Client for Mider
 CoE 전용 MCP 서버와 통신하는 클라이언트
 """
 

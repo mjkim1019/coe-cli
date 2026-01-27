@@ -1,5 +1,5 @@
 """
-Swing CLI 튜토리얼 모드
+Mider 튜토리얼 모드
 새 사용자를 위한 단계별 대화형 튜토리얼 제공
 """
 
@@ -16,7 +16,7 @@ from prompt_toolkit import PromptSession
 
 
 class TutorialMode:
-    """Swing CLI 대화형 튜토리얼 모드"""
+    """Mider 대화형 튜토리얼 모드"""
     
     def __init__(self, console: Console, file_manager, file_editor, llm_service, ui_components, panels, interactive_ui, session: PromptSession):
         self.console = console
@@ -35,7 +35,7 @@ class TutorialMode:
         self.steps = [
             {
                 'title': '환영합니다!',
-                'description': 'Swing CLI 튜토리얼에 오신 것을 환영합니다.\n\n이 튜토리얼은 실제 파일을 사용하여 Swing CLI의 주요 기능을 단계별로 안내합니다.\n\n언제든지 "exit" 또는 "restart"를 입력하여 튜토리얼을 종료하거나 재시작할 수 있습니다.',
+                'description': 'Mider 튜토리얼에 오신 것을 환영합니다.\n\n이 튜토리얼은 실제 파일을 사용하여 Mider의 주요 기능을 단계별로 안내합니다.\n\n언제든지 "exit" 또는 "restart"를 입력하여 튜토리얼을 종료하거나 재시작할 수 있습니다.',
                 'action': None
             },
             {
@@ -91,7 +91,7 @@ class TutorialMode:
             },
             {
                 'title': '튜토리얼 완료!',
-                'description': '축하합니다! Swing CLI의 기본 기능을 모두 배우셨습니다.\n\n학습한 내용:\n• /add - 파일 추가\n• /files, /tree - 파일 목록 확인\n• /info - 파일 분석 (C, XML, SQL)\n• /ask - AI에게 질문\n• /edit - 코드 수정\n\n더 많은 명령어는 /help를 입력하여 확인하세요.\n\n이제 실제 프로젝트에서 Swing CLI를 활용해보세요!',
+                'description': '축하합니다! Mider의 기본 기능을 모두 배우셨습니다.\n\n학습한 내용:\n• /add - 파일 추가\n• /files, /tree - 파일 목록 확인\n• /info - 파일 분석 (C, XML, SQL)\n• /ask - AI에게 질문\n• /edit - 코드 수정\n\n더 많은 명령어는 /help를 입력하여 확인하세요.\n\n이제 실제 프로젝트에서 Mider를 활용해보세요!',
                 'action': 'complete'
             }
         ]
@@ -148,7 +148,7 @@ class TutorialMode:
             
             self.console.print()
             self.console.print(Panel(
-                "[bold green]튜토리얼을 완료했습니다! 이제 Swing CLI를 자유롭게 사용하실 수 있습니다.[/bold green]",
+                "[bold green]튜토리얼을 완료했습니다! 이제 Mider를 자유롭게 사용하실 수 있습니다.[/bold green]",
                 title="✅ 완료",
                 border_style="green"
             ))

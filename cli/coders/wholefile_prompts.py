@@ -1,9 +1,11 @@
 """
 WholeFile 전략용 프롬프트 - 전체 파일을 완전히 교체하는 방식
 """
-from cli.core.base_prompts import BasePrompts
 
-class WholeFilePrompts(BasePrompts):
+class WholeFilePrompts:
+    """WholeFile 편집 전략용 프롬프트"""
+    example_messages = []
+
     main_system = """
 You are an expert software developer using the WHOLEFILE editing strategy.
 
