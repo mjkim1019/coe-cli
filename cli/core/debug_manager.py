@@ -87,6 +87,13 @@ class DebugManager:
             console.print(f"[magenta dim][LLM DEBUG][/magenta dim] [dim]{message}[/dim]")
 
     @classmethod
+    def chunking(cls, message: str):
+        """파일 청킹 관련 디버그 출력 (dim bright_magenta)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[bright_magenta dim][Chunking DEBUG][/bright_magenta dim] [dim]{message}[/dim]")
+
+    @classmethod
     def prompt(cls, message: str):
         """프롬프트 관련 디버그 출력 (dim green)"""
         if cls._debug_enabled:

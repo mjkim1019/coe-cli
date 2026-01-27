@@ -529,24 +529,49 @@ class ArchitectMode:
         return True
     
     def _execute_ask(self, step: ExecutionStep) -> bool:
-        """Execute /ask 명령 - LLM 쿼리"""
+        """Execute /ask 명령 - LLM 쿼리 (대용량 파일 청킹 지원)"""
         question = step.parameters.get("question") or step.description
-        
-        # 기존 LLM 서비스를 사용하여 질문
+
         from cli.core.context_manager import PromptBuilder
-        
+        from cli.core.file_chunker import FileChunker
+
         prompt_builder = PromptBuilder('ask')
-        messages = prompt_builder.build(question, self.file_manager.files, [], self.file_manager)
-        
-        response = self.llm_service.chat_completion(messages)
-        if response and "choices" in response:
-            answer = response["choices"][0]["message"]["content"]
-            step.output = answer[:200] + "..." if len(answer) > 200 else answer
-            self.console.print(f"[dim]  답변: {step.output}[/dim]")
-            return True
+
+        # 대용량 파일 자동 청킹
+        chunker = FileChunker()
+        has_large = any(
+            chunker.needs_chunking(c)
+            for c in self.file_manager.files.values()
+        )
+
+        if has_large:
+            messages, aggregated = prompt_builder.build_with_chunking(
+                question, self.file_manager.files, [], self.file_manager,
+                llm_service=self.llm_service, console=self.console
+            )
+            if aggregated:
+                step.output = aggregated[:200] + "..." if len(aggregated) > 200 else aggregated
+                self.console.print(f"[dim]  답변: {step.output}[/dim]")
+                return True
+            # fallback: messages가 반환되면 기존 방식으로 호출
+            if messages:
+                response = self.llm_service.chat_completion(messages)
+                if response and "choices" in response:
+                    answer = response["choices"][0]["message"]["content"]
+                    step.output = answer[:200] + "..." if len(answer) > 200 else answer
+                    self.console.print(f"[dim]  답변: {step.output}[/dim]")
+                    return True
         else:
-            step.error = "Failed to get LLM response"
-            return False
+            messages = prompt_builder.build(question, self.file_manager.files, [], self.file_manager)
+            response = self.llm_service.chat_completion(messages)
+            if response and "choices" in response:
+                answer = response["choices"][0]["message"]["content"]
+                step.output = answer[:200] + "..." if len(answer) > 200 else answer
+                self.console.print(f"[dim]  답변: {step.output}[/dim]")
+                return True
+
+        step.error = "Failed to get LLM response"
+        return False
     
     def _handle_step_failure(self, step: ExecutionStep) -> str:
         """단계 실패 처리 - 사용자에게 조치 방법 물어보기"""

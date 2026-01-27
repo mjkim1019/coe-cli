@@ -568,14 +568,44 @@ def main():
 
             # Build the prompt using persistent PromptBuilder (캐시 유지)
             prompt_builder.set_task(task)  # task 모드만 변경 (캐시는 유지)
-            messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
 
             # 입출력 관련 질문인지 확인하고 JSON 강제 모드 사용
-            force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
-            
-            # 로딩 메시지
-            with interactive_ui.display_loading_message():
-                llm_response = llm_service.chat_completion(messages, force_json=force_json)
+            force_json = False
+            llm_response = None
+
+            if task == 'ask':
+                # ask 모드: 대용량 파일 자동 청킹
+                from cli.core.file_chunker import FileChunker
+                _chunker = FileChunker()
+                _has_large = any(
+                    _chunker.needs_chunking(c)
+                    for c in file_manager.files.values()
+                )
+                if _has_large:
+                    with interactive_ui.display_loading_message():
+                        messages, aggregated = prompt_builder.build_with_chunking(
+                            user_input, file_manager.files, chat_history,
+                            file_manager, llm_service=llm_service, console=console
+                        )
+                    if aggregated:
+                        llm_response = {"choices": [{"message": {"content": aggregated}}]}
+                    else:
+                        # 청킹 불필요 판정 또는 fallback → 기존 경로
+                        force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
+                        with interactive_ui.display_loading_message():
+                            llm_response = llm_service.chat_completion(messages, force_json=force_json)
+                else:
+                    # 대용량 파일 없음 → 기존 경로
+                    messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
+                    force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
+                    with interactive_ui.display_loading_message():
+                        llm_response = llm_service.chat_completion(messages, force_json=force_json)
+            else:
+                # edit 모드 등: 기존 경로 그대로
+                messages = prompt_builder.build(user_input, file_manager.files, chat_history, file_manager)
+                force_json = hasattr(prompt_builder, 'is_io_question') and prompt_builder.is_io_question
+                with interactive_ui.display_loading_message():
+                    llm_response = llm_service.chat_completion(messages, force_json=force_json)
 
             if llm_response and "choices" in llm_response:
                 llm_message = llm_response["choices"][0]["message"]

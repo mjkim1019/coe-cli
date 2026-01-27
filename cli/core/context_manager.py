@@ -548,6 +548,212 @@ class PromptBuilder:
 
         return relevant_analysis
 
+    def build_with_chunking(self, user_input: str, file_context: dict, history: list = None,
+                             file_manager=None, llm_service=None, console=None):
+        """대용량 파일 자동 감지 → 청크 분할 → 개별 LLM 호출 → 결과 통합
+
+        Returns:
+            (messages, None)          — 청킹 불필요, 기존 방식으로 호출
+            (None, aggregated_answer) — 청킹 완료, 통합 답변 반환
+        """
+        from .file_chunker import FileChunker
+
+        if history is None:
+            history = []
+
+        chunker = FileChunker()
+
+        # 대용량 파일 분류
+        large_files = {}   # 청킹 대상
+        small_files = {}   # 기존 방식
+        for fpath, content in (file_context or {}).items():
+            if chunker.needs_chunking(content):
+                large_files[fpath] = content
+            else:
+                small_files[fpath] = content
+
+        if not large_files:
+            # 대용량 파일 없음 → 기존 build() 사용
+            messages = self.build(user_input, file_context, history, file_manager)
+            return messages, None
+
+        DebugManager.chunking(
+            f"대용량 파일 {len(large_files)}개 감지 → 청크 분석 모드 전환"
+        )
+
+        if console:
+            from rich.panel import Panel
+            console.print(Panel(
+                f"[bold bright_magenta]대용량 파일 감지[/bold bright_magenta]\n"
+                f"청크 분할 분석을 시작합니다 ({len(large_files)}개 파일)",
+                border_style="bright_magenta"
+            ))
+
+        # --- Map 단계: 각 청크를 개별 LLM 호출로 분석 ---
+        all_chunk_results = []  # (file_path, chunk, llm_answer)
+
+        for fpath, content in large_files.items():
+            chunking_result = chunker.chunk_file(fpath, content)
+            if not chunking_result:
+                continue
+
+            DebugManager.chunking(
+                f"{os.path.basename(fpath)}: {len(chunking_result.chunks)}개 청크로 분할"
+            )
+
+            for chunk in chunking_result.chunks:
+                # 청크별 프롬프트 구성
+                chunk_messages = self._build_chunk_messages(
+                    user_input, chunk, small_files, history
+                )
+
+                if console:
+                    console.print(
+                        f"  [bright_magenta]▶ 청크 {chunk.chunk_index + 1}/"
+                        f"{chunk.total_chunks} 분석 중... "
+                        f"(lines {chunk.start_line}-{chunk.end_line})[/bright_magenta]"
+                    )
+
+                # LLM 호출
+                response = llm_service.chat_completion(chunk_messages)
+                if response and "choices" in response:
+                    answer = response["choices"][0]["message"]["content"]
+                    all_chunk_results.append((fpath, chunk, answer))
+                    DebugManager.chunking(
+                        f"  청크 {chunk.chunk_index + 1} 응답: {len(answer)} chars"
+                    )
+                else:
+                    DebugManager.error(
+                        f"청크 {chunk.chunk_index + 1} LLM 호출 실패"
+                    )
+
+        if not all_chunk_results:
+            # 모든 청크 호출 실패 → 기존 방식 fallback
+            DebugManager.chunking("모든 청크 LLM 호출 실패 → fallback")
+            messages = self.build(user_input, file_context, history, file_manager)
+            return messages, None
+
+        # --- Reduce 단계: 청크 결과를 통합 ---
+        aggregated = self._aggregate_chunk_results(
+            user_input, all_chunk_results, llm_service, console
+        )
+
+        return None, aggregated
+
+    def _build_chunk_messages(self, user_input: str, chunk, small_files: dict,
+                              history: list) -> list:
+        """개별 청크용 프롬프트 메시지를 구성합니다."""
+        active_prompts = self._get_active_prompts()
+        messages = []
+
+        # 시스템 프롬프트
+        messages.append({"role": "system", "content": active_prompts.main_system})
+
+        # 청크 컨텍스트
+        chunk_header_info = ""
+        if chunk.context_header:
+            chunk_header_info = (
+                f"\n\n--- File Header (includes/defines) ---\n"
+                f"```\n{chunk.context_header}\n```"
+            )
+
+        func_info = ""
+        if chunk.functions:
+            func_info = f"\n포함된 함수: {', '.join(chunk.functions)}"
+
+        chunk_context = (
+            f"[대용량 파일 청크 분석 모드]\n"
+            f"File: {chunk.file_path}\n"
+            f"Chunk {chunk.chunk_index + 1}/{chunk.total_chunks} "
+            f"(lines {chunk.start_line}-{chunk.end_line})"
+            f"{func_info}"
+            f"{chunk_header_info}\n\n"
+            f"--- Chunk Content ---\n"
+            f"```\n{chunk.content}\n```"
+        )
+        messages.append({"role": "system", "content": chunk_context})
+
+        # 작은 파일들도 포함 (참조용)
+        for fpath, content in small_files.items():
+            file_str = f"File: {fpath}\n```\n{content}\n```"
+            messages.append({"role": "system", "content": file_str})
+
+        # 히스토리
+        messages.extend(history)
+
+        # 사용자 질문 + 청크 안내
+        user_msg = (
+            f"{user_input}\n\n"
+            f"[참고: 이 파일은 대용량이므로 청크별로 분석 중입니다. "
+            f"현재 청크 {chunk.chunk_index + 1}/{chunk.total_chunks}에 대해 답변해주세요. "
+            f"이 청크에서 발견된 내용만 답변하고, 발견되지 않으면 '이 청크에서는 해당 내용이 발견되지 않았습니다'라고 답해주세요.]"
+        )
+        messages.append({"role": "user", "content": user_msg})
+
+        return messages
+
+    def _aggregate_chunk_results(self, user_input: str, chunk_results: list,
+                                 llm_service, console=None) -> str:
+        """청크별 LLM 응답을 통합하여 최종 답변을 생성합니다."""
+        DebugManager.chunking(f"청크 결과 통합 시작: {len(chunk_results)}개 결과")
+
+        if console:
+            console.print(
+                f"\n  [bright_magenta]▶ {len(chunk_results)}개 청크 결과 통합 중...[/bright_magenta]"
+            )
+
+        # 통합 프롬프트 구성
+        results_text = ""
+        for fpath, chunk, answer in chunk_results:
+            func_info = ""
+            if chunk.functions:
+                func_info = f" (함수: {', '.join(chunk.functions)})"
+            results_text += (
+                f"\n--- {os.path.basename(fpath)} 청크 {chunk.chunk_index + 1}/"
+                f"{chunk.total_chunks} (lines {chunk.start_line}-{chunk.end_line})"
+                f"{func_info} ---\n"
+                f"{answer}\n"
+            )
+
+        aggregation_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "당신은 대용량 파일 분석 결과를 통합하는 전문가입니다.\n"
+                    "여러 청크로 나뉘어 분석된 결과를 종합하여 하나의 완성된 답변을 만들어주세요.\n"
+                    "중복 내용은 제거하고, 청크 순서에 맞게 정리하세요.\n"
+                    "원래 사용자 질문에 대한 포괄적인 답변을 제공하세요."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"원래 질문: {user_input}\n\n"
+                    f"아래는 대용량 파일을 청크별로 분석한 결과입니다:\n"
+                    f"{results_text}\n\n"
+                    f"위 청크별 분석 결과를 종합하여 원래 질문에 대한 "
+                    f"하나의 통합된 답변을 생성해주세요."
+                ),
+            },
+        ]
+
+        response = llm_service.chat_completion(aggregation_messages)
+        if response and "choices" in response:
+            aggregated = response["choices"][0]["message"]["content"]
+            DebugManager.chunking(f"통합 답변 생성 완료: {len(aggregated)} chars")
+            return aggregated
+
+        # 통합 LLM 호출 실패 → 청크 결과를 그냥 이어붙임
+        DebugManager.error("청크 결과 통합 LLM 호출 실패 → 단순 연결 fallback")
+        fallback = "## 청크별 분석 결과\n\n"
+        for fpath, chunk, answer in chunk_results:
+            fallback += (
+                f"### {os.path.basename(fpath)} "
+                f"(lines {chunk.start_line}-{chunk.end_line})\n"
+                f"{answer}\n\n"
+            )
+        return fallback
+
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""
         import re
