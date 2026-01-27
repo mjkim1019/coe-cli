@@ -209,6 +209,12 @@ class FileManager:
                     self.pc_file_info[resolved_path] = analysis
                     result['analysis'] = analysis
                     result['message'] = f"Read {resolved_path}, {line_count} lines"
+                    # Pro*C 필수 헤더 자동 로드
+                    zngm_path = self._resolve_file_path('zngm.h')
+                    if zngm_path and zngm_path not in self.files:
+                        zngm_result = self.add_single_file('zngm.h')
+                        if zngm_result['message']:
+                            result['message'] += f"\n  ↳ Auto-loaded: {zngm_result['message']}"
                 # .sql 파일인 경우 구조 정보 추가
                 elif resolved_path.endswith('.sql'):
                     result['file_type'] = 'sql_file'
