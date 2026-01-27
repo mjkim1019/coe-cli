@@ -118,29 +118,83 @@ class EditBlockCoder(BaseCoder):
             for i, (search_block, replace_block) in enumerate(blocks):
                 search_block = search_block.rstrip()
                 replace_block = replace_block.rstrip()
-                
-                # 검색 블록을 파일에서 찾기
+
+                # 1차: 정확한 문자열 매칭
                 if search_block in modified_content:
                     modified_content = modified_content.replace(search_block, replace_block, 1)
-                    DebugManager.info(f"[EditBlock] 블록 {i+1} 교체 성공")
+                    DebugManager.info(f"[EditBlock] 블록 {i+1} 교체 성공 (정확 매칭)")
                 else:
-                    DebugManager.info(f"[EditBlock] 블록 {i+1} 찾기 실패:")
+                    DebugManager.info(f"[EditBlock] 블록 {i+1} 정확 매칭 실패, 퍼지 매칭 시도")
                     DebugManager.info(f"[EditBlock] 검색: '{search_block[:100]}...'")
-                    
-                    # 유사한 텍스트 찾기 시도 (공백 차이 무시)
-                    normalized_search = ' '.join(search_block.split())
-                    content_lines = modified_content.split('\n')
-                    
-                    for line_num, line in enumerate(content_lines):
-                        normalized_line = ' '.join(line.split())
-                        if normalized_search in normalized_line:
-                            DebugManager.info(f"[EditBlock] 유사한 라인 {line_num}: '{line}'")
-                            break
+
+                    # 2차: 줄 단위 정규화 매칭 (앞뒤 공백 무시)
+                    result = self._fuzzy_replace(modified_content, search_block, replace_block)
+                    if result is not None:
+                        modified_content = result
+                        DebugManager.info(f"[EditBlock] 블록 {i+1} 교체 성공 (퍼지 매칭)")
+                    else:
+                        DebugManager.info(f"[EditBlock] 블록 {i+1} 찾기 실패")
             
             files[target_file] = modified_content
         
         return files
     
+    def _fuzzy_replace(self, content: str, search_block: str, replace_block: str) -> str:
+        """줄 단위 정규화 매칭으로 SEARCH 블록을 찾아 교체
+
+        LLM이 반환한 SEARCH 블록의 들여쓰기가 원본과 다를 때 사용.
+        각 줄의 strip() 결과를 비교하되, 교체 시에는 원본 들여쓰기를 보존한다.
+        """
+        search_lines = search_block.split('\n')
+        replace_lines = replace_block.split('\n')
+        content_lines = content.split('\n')
+
+        # 빈 줄만 있는 search는 매칭하지 않음
+        stripped_search = [line.strip() for line in search_lines]
+        if not any(stripped_search):
+            return None
+
+        for i in range(len(content_lines) - len(search_lines) + 1):
+            match = True
+            for j, search_line in enumerate(search_lines):
+                if content_lines[i + j].strip() != search_line.strip():
+                    match = False
+                    break
+
+            if match:
+                # 원본의 첫 번째 줄 들여쓰기를 감지하여 REPLACE 블록에 적용
+                original_indent = ''
+                for ch in content_lines[i]:
+                    if ch in (' ', '\t'):
+                        original_indent += ch
+                    else:
+                        break
+
+                # REPLACE 블록의 공통 들여쓰기 제거 후 원본 들여쓰기 적용
+                replace_indent = ''
+                for line in replace_lines:
+                    if line.strip():
+                        for ch in line:
+                            if ch in (' ', '\t'):
+                                replace_indent += ch
+                            else:
+                                break
+                        break
+
+                adjusted_replace = []
+                for line in replace_lines:
+                    if not line.strip():
+                        adjusted_replace.append(content_lines[i].rstrip() if not content_lines[i].strip() else '')
+                    elif line.startswith(replace_indent):
+                        adjusted_replace.append(original_indent + line[len(replace_indent):])
+                    else:
+                        adjusted_replace.append(line)
+
+                new_lines = content_lines[:i] + adjusted_replace + content_lines[i + len(search_lines):]
+                return '\n'.join(new_lines)
+
+        return None
+
     def _apply_simple_blocks(self, original_content: str, blocks: List[str]) -> str:
         """단순 SEARCH/REPLACE 블록들을 파일에 적용"""
         modified_content = original_content
