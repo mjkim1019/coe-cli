@@ -1,0 +1,415 @@
+# Mider - Product Requirements Document
+## Version: 2026 Q1 Update (Revised)
+
+## Project Overview
+Mider is an LLM-powered interactive CLI tool that enables developers to analyze, query, modify, and test code through natural language conversations. It provides specialized analysis for C, SQL, and XML files commonly used in enterprise systems.
+
+## Goals
+- Improve developer productivity by enabling code review and structure analysis directly in CLI
+- Reduce onboarding time for new team members through automated code understanding
+- Provide domain-specific analysis for legacy enterprise code (C/SQL/XML)
+
+## Target Users
+- Developers working with Python, C, SQL, XML-based projects
+- System administrators and operations teams
+- Teams maintaining legacy enterprise applications
+
+## Tech Stack
+- Language: Python 3.8+
+- CLI Framework: Click
+- Interactive Interface: prompt_toolkit
+- LLM Integration: OpenAI API
+- HTTP Client: requests
+- Output Formatting: Rich library
+
+---
+
+## Current Implementation Status (As of 2026 Q1)
+
+**Total Codebase: 15,131 lines | 26 classes | 150+ methods | 99.3% Complete**
+
+### Fully Completed ✅
+
+#### Core Features (P0)
+
+| # | Feature | Location | Lines | Status |
+|---|---------|----------|-------|--------|
+| 1 | Interactive REPL Interface | cli/main.py, cli/ui/ | 696 | ✅ |
+| 2 | LLM-based Code Analysis (MiderAnalyzer) | cli/core/analyzer.py | 611 | ✅ |
+| 3 | File Type-Specific Analysis | prompts/*.py | 364 | ✅ |
+| 4 | Three-Strategy Editing | cli/coders/ | 1,120 | ✅ |
+| 5 | Backup and Rollback System | actions/file_editor.py | 494 | ✅ |
+| 6 | Repository Mapping | cli/coders/repo_mapper.py | 395 | ✅ |
+| 7 | MCP Integration | mcp/, cli/core/mcp_integration.py | 442 | ✅ |
+| 8 | Template Management | actions/template_manager.py | 257 | ✅ |
+| 9 | Debug Manager | cli/core/debug_manager.py | 104 | ✅ |
+| 10 | File Tree Analysis | actions/file_tree_analyzer.py | 390 | ✅ |
+
+#### Advanced Features (P1) - NOW COMPLETE
+
+| # | Feature | Location | Lines | Status |
+|---|---------|----------|-------|--------|
+| 11 | **Tutorial Mode** | cli/ui/tutorial.py | 532 | ✅ |
+| 12 | **Architect Mode (AI Orchestration)** | cli/core/architect_mode.py | 590 | ✅ |
+| 13 | **Architect Plan Management** | cli/core/architect_plan.py | 152 | ✅ |
+| 14 | **MiderAnalyzer Caching** | cli/core/context_manager.py | 550 | ✅ |
+| 15 | **AGENTS.md Auto-generation** | actions/document_generator.py | 104 | ✅ |
+| 16 | **Context Manager with Caching** | cli/core/context_manager.py | 550 | ✅ |
+
+#### UI Components (Complete)
+
+| # | Feature | Location | Lines | Status |
+|---|---------|----------|-------|--------|
+| 17 | Rich UI Components | cli/ui/components.py | 773 | ✅ |
+| 18 | Interactive UI | cli/ui/interactive.py | 345 | ✅ |
+| 19 | UI Panels | cli/ui/panels.py | 296 | ✅ |
+| 20 | Response Formatters | cli/ui/formatters.py | 187 | ✅ |
+
+### Implemented Commands (22+)
+
+| Command | Description | Status |
+|---------|-------------|--------|
+| /add <file> | Add file to context | ✅ |
+| /files | List current files | ✅ |
+| /tree | Show file tree | ✅ |
+| /info @<file> | File analysis details | ✅ |
+| /ask | Switch to ask mode | ✅ |
+| /edit [strategy] | Switch to edit mode | ✅ |
+| /preview | Preview changes | ✅ |
+| /apply | Apply changes | ✅ |
+| /history | Show edit history | ✅ |
+| /rollback <ID> | Undo edits | ✅ |
+| /repo [files] | Generate repo map | ✅ |
+| /new | Create from template | ✅ |
+| /mcp | Show MCP status | ✅ |
+| /mcp help <tool> | MCP tool help | ✅ |
+| /debug | Toggle debug output | ✅ |
+| /session | Show session info | ✅ |
+| /session-reset | Reset conversation | ✅ |
+| /clear | Clear chat history | ✅ |
+| /help | Display help | ✅ |
+| /exit | Exit program | ✅ |
+| **/tutorial** | Interactive tutorial (8 steps) | ✅ |
+| **/architect** | AI task orchestration | ✅ |
+| **/resume** | Resume saved plans | ✅ |
+| **/mider-cache** | Show cache status | ✅ |
+
+### Partially Implemented 🟡
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Edit Intent Detection | 50% | Korean keywords implemented, needs English + semantic |
+| Test System | 30% | Manual scripts exist, no pytest/CI |
+| Session Persistence | 40% | Basic session ID, no full save/restore |
+
+### Not Started ❌
+
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| Prompt Caching | P1 | OpenAI API prompt caching |
+| File Watcher | P2 | Hot reload with watchdog |
+| Edit GuardRail | P2 | Change tracking with metadata |
+| Session Save/Load | P2 | Full session state persistence |
+| Auto Testing | P3 | Run tests on file save |
+| command_runner.py | - | Empty stub file |
+
+---
+
+## 2026 Q1 Sprint: Stabilization & Enhancement
+
+### Epic 1: Performance Stabilization (3 weeks)
+
+#### Task 1.1: Response Time Optimization
+**Status: NEW**
+
+Optimize LLM call patterns and caching effectiveness.
+
+**Subtasks:**
+- Profile current response times and identify bottlenecks
+- Implement request batching for multiple file analysis
+- Add connection pooling for LLM API calls
+- Optimize prompt size by removing redundant context
+- Add response streaming for long outputs
+
+**Success Metrics:**
+- Average response time < 3 seconds for cached queries
+- 50% reduction in prompt token usage
+
+#### Task 1.2: Memory Usage Optimization
+**Status: NEW**
+
+Reduce memory footprint for large file contexts.
+
+**Subtasks:**
+- Implement lazy loading for file contents
+- Add file content pagination for large files (>1000 lines)
+- Optimize RepoMap cache with LRU eviction
+- Profile and fix memory leaks in long sessions
+
+**Success Metrics:**
+- Memory usage < 500MB for 50 file context
+- No memory growth over 2-hour sessions
+
+#### Task 1.3: Error Handling Hardening
+**Status: NEW**
+
+Improve error recovery and user feedback.
+
+**Subtasks:**
+- Add graceful degradation when LLM API fails
+- Implement retry logic with exponential backoff
+- Add user-friendly error messages in Korean
+- Create error recovery suggestions
+- Handle network timeout gracefully
+
+**Success Metrics:**
+- 0 unhandled exceptions in production
+- All errors have actionable user messages
+
+---
+
+### Epic 2: Feature Enhancement (4 weeks)
+
+#### Task 2.1: Enhanced Edit Intent Detection
+**Status: PARTIAL → ENHANCE**
+
+Current: Korean keyword detection only
+Target: Multi-language semantic detection
+
+**Subtasks:**
+- Expand Korean keyword dictionary (add 20+ patterns)
+- Add English keyword support
+- Implement pattern-based intent classification
+- Add confidence scoring for intent detection
+- Support context-aware intent (follow-up edits)
+
+**Success Metrics:**
+- 90% accuracy on intent detection
+- Support both Korean and English
+
+#### Task 2.2: Session Persistence
+**Status: PARTIAL → COMPLETE**
+
+Current: Basic session ID tracking
+Target: Full save/restore functionality
+
+**Subtasks:**
+- Design session state schema (files, history, mode, cache)
+- Implement session save to JSON file
+- Add /save-session and /load-session commands
+- Auto-save on exit with confirmation
+- Add session listing and management
+
+**Success Metrics:**
+- Session restore within 2 seconds
+- No data loss on crash recovery
+
+#### Task 2.3: Prompt Caching Integration
+**Status: NEW**
+
+Implement OpenAI prompt caching for performance.
+
+**Subtasks:**
+- Implement cache-control headers for static prompts
+- Cache file type-specific system prompts
+- Add cache hit rate monitoring
+- Implement cache invalidation strategy
+
+**Success Metrics:**
+- 60% reduction in API costs for repeated queries
+- Cache hit rate > 70%
+
+#### Task 2.4: Automated Test Integration
+**Status: PARTIAL → COMPLETE**
+
+Current: Manual test scripts
+Target: pytest-based CI/CD ready
+
+**Subtasks:**
+- Convert manual tests to pytest format
+- Add unit tests for core modules
+- Add integration tests for CLI commands
+- Set up test fixtures with sample files
+- Add test coverage reporting
+- Configure GitHub Actions CI
+
+**Success Metrics:**
+- 70% code coverage
+- All tests pass in CI
+
+---
+
+### Epic 3: Code Quality (2 weeks)
+
+#### Task 3.1: Code Refactoring
+**Status: NEW**
+
+Clean up technical debt.
+
+**Subtasks:**
+- Remove or implement command_runner.py
+- Standardize error handling across modules
+- Add type hints to all public functions
+- Update docstrings to consistent format
+- Remove unused imports and dead code
+
+#### Task 3.2: Logging Standardization
+**Status: PARTIAL**
+
+Current: DebugManager exists
+Target: Full structured logging
+
+**Subtasks:**
+- Migrate remaining print statements to DebugManager
+- Add log levels (DEBUG, INFO, WARN, ERROR)
+- Implement log file output option
+- Add structured logging for analytics
+
+#### Task 3.3: Configuration Management
+**Status: NEW**
+
+Centralize configuration handling.
+
+**Subtasks:**
+- Create config.py with all settings
+- Support .env file for API keys
+- Add mider.yaml for project-specific config
+- Implement config validation on startup
+
+---
+
+## 2026 Q2 Roadmap (Preview)
+
+### P2 Features (Primary Focus)
+| Feature | Duration | Description |
+|---------|----------|-------------|
+| File Watcher | 2 weeks | Hot reload with watchdog library |
+| Edit GuardRail | 3 weeks | Change tracking with LLM-generated comments |
+| MCP Server Mode | 2 weeks | Expose tools to other agents |
+
+### P3 Features (Secondary)
+| Feature | Duration | Description |
+|---------|----------|-------------|
+| Auto Testing | 2 weeks | Run tests on file save |
+| Advanced Diff/Patch | 3 weeks | Sophisticated change management |
+| Web UI | 4 weeks | Browser-based visualization |
+
+---
+
+## Success Metrics
+
+### Performance
+- Average response time: ≤3s (cached), ≤8s (non-cached)
+- Memory usage: <500MB for 50 files
+- Cache hit rate: ≥70%
+- /add command: <500ms
+
+### Quality
+- Code coverage: ≥70%
+- Zero unhandled exceptions
+- All errors have Korean messages
+
+### User Experience
+- Tutorial completion: ≥80%
+- Session restore: <2s
+- Intent detection accuracy: ≥90%
+
+---
+
+## Development Timeline
+
+### 2026 Q1 (9 weeks remaining)
+
+**Week 1-3: Epic 1 - Performance Stabilization**
+- Response time optimization
+- Memory optimization
+- Error handling hardening
+
+**Week 4-7: Epic 2 - Feature Enhancement**
+- Enhanced intent detection
+- Session persistence
+- Prompt caching
+- Test integration
+
+**Week 8-9: Epic 3 - Code Quality**
+- Refactoring
+- Logging standardization
+- Configuration management
+
+### 2026 Q2
+
+**Week 1-2: File Watcher**
+**Week 3-5: Edit GuardRail**
+**Week 6-7: MCP Server Mode**
+**Week 8-10: Auto Testing**
+**Week 11-12: Buffer/Polish**
+
+---
+
+## Architecture Summary
+
+### Module Structure
+```
+cli/                          15,131 lines total
+├── main.py                   696 lines - REPL entry
+├── core/                     2,336 lines
+│   ├── analyzer.py           611 - MiderAnalyzer
+│   ├── context_manager.py    550 - Prompt building + caching
+│   ├── architect_mode.py     590 - AI orchestration
+│   ├── architect_plan.py     152 - Plan data structures
+│   ├── mcp_integration.py    119 - MCP integration
+│   └── debug_manager.py      104 - Debug output
+├── coders/                   1,120 lines
+│   ├── base_coder.py         182 - Strategy pattern base
+│   ├── wholefile_coder.py    88  - Full file replacement
+│   ├── editblock_coder.py    201 - Block editing
+│   ├── udiff_coder.py        160 - Unified diff
+│   └── repo_mapper.py        395 - Repo mapping
+├── ui/                       1,633 lines
+│   ├── components.py         773 - Rich UI
+│   ├── tutorial.py           532 - 8-step tutorial
+│   ├── interactive.py        345 - Interactive UI
+│   ├── panels.py             296 - UI panels
+│   └── formatters.py         187 - Response formatting
+actions/                      2,127 lines
+├── file_manager.py           561 - File context
+├── file_editor.py            494 - Edit operations
+├── file_tree_analyzer.py     390 - Tree analysis
+├── template_manager.py       257 - Templates
+└── document_generator.py     104 - AGENTS.md
+prompts/                      364 lines
+├── c_file_prompt.py          95
+├── sql_file_prompt.py        115
+├── xml_file_prompt.py        96
+└── generic_file_prompt.py    58
+mcp/                          442 lines
+├── client.py                 176 - HTTP client
+└── tools.py                  266 - Tool execution
+llm/
+└── service.py                60  - LLM API
+```
+
+### Design Patterns
+- **Strategy Pattern**: 3 editing strategies (wholefile, editblock, udiff)
+- **Registry Pattern**: CoderRegistry for dynamic strategy selection
+- **Singleton Pattern**: DebugManager, LLMService
+- **Factory Pattern**: PromptBuilder for task-specific prompts
+
+---
+
+## Risk Mitigation
+
+### Technical Risks
+| Risk | Mitigation |
+|------|------------|
+| LLM API rate limits | Request queuing, caching |
+| Large file handling | Chunked processing, pagination |
+| Network instability | Retry logic, offline fallback |
+| Memory leaks | LRU cache, periodic cleanup |
+
+### Schedule Risks
+| Risk | Mitigation |
+|------|------------|
+| Scope creep | Weekly sprint reviews |
+| Dependency delays | Parallel task execution |
+| Resource constraints | Priority-based delivery |
