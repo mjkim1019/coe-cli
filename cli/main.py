@@ -399,9 +399,17 @@ def main():
                 continue
 
 
-            elif user_input.strip().lower().startswith('/rollback '):
+            elif user_input.strip().lower().startswith('/rollback'):
                 parts = user_input.strip().split()
-                if len(parts) == 2:
+                if len(parts) == 1:
+                    # /rollback만 입력 — 히스토리 보여주고 사용법 안내
+                    operations = file_editor.get_history(5)
+                    if operations:
+                        console.print(ui.edit_history_table(operations))
+                        console.print("[dim]사용법: /rollback <ID> → /rollback <ID> confirm[/dim]\n")
+                    else:
+                        interactive_ui.display_command_results('/rollback', {'message': '롤백할 편집 히스토리가 없습니다.'}, console)
+                elif len(parts) == 2:
                     operation_id = parts[1]
                     # 해당 작업 찾기
                     operations = file_editor.get_history()
@@ -439,6 +447,7 @@ def main():
 
             elif user_input.strip().lower() == '/ask':
                 task = 'ask'
+                prompt_builder.set_coder_prompts(None)
                 interactive_ui.display_mode_switch_message(task)
                 continue
 
@@ -505,6 +514,7 @@ def main():
                 if len(parts) == 1:
                     # 기본 edit 모드
                     task = 'edit'
+                    prompt_builder.set_coder_prompts(current_coder.prompts)
                     interactive_ui.display_mode_switch_message(task)
                 elif len(parts) == 2:
                     # 전략과 함께 edit 모드
@@ -512,6 +522,7 @@ def main():
                     if strategy_name in registry._coders:
                         edit_strategy = strategy_name
                         current_coder = registry.get_coder(edit_strategy, file_editor)
+                        prompt_builder.set_coder_prompts(current_coder.prompts)
                         task = 'edit'
                         console.print(f"[bold green]✅ '{strategy_name}' 전략으로 edit 모드가 설정되었습니다.[/bold green]")
                         console.print(f"[dim]✏️ 이제 {strategy_name} 방식으로 코드 수정을 요청할 수 있습니다.[/dim]\n")
@@ -525,12 +536,11 @@ def main():
             elif user_input.strip() == "":
                 continue
 
-            # AI 대화 상태 처리 - 제거됨 (/new 명령어로 대체)
-
             # "수정해줘" 등 edit 요청 키워드 감지 시 edit 모드로 자동 전환
             elif any(keyword in user_input for keyword in ["수정해줘", "수정해 줘", "바꿔줘", "바꿔 줘", "고쳐줘", "고쳐 줘", "편집해줘", "편집해 줘"]):
                 if task != 'edit':
                     task = 'edit'
+                    prompt_builder.set_coder_prompts(current_coder.prompts)
                     console.print(f"[bold green]✅ '수정해줘' 요청으로 edit 모드로 자동 전환되었습니다.[/bold green]")
                     console.print(f"[dim]✏️ 이제 파일 수정을 요청할 수 있습니다.[/dim]\n")
                 

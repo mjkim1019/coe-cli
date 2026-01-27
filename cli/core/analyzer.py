@@ -132,6 +132,10 @@ class MiderAnalyzer:
                 from prompts.xml_file_prompt import get_xml_file_analysis_prompt
                 return get_xml_file_analysis_prompt(file_path, file_info, content)
             
+            elif file_type == 'pc_file' or file_path.endswith('.pc'):
+                from prompts.pc_file_prompt import get_pc_file_analysis_prompt
+                return get_pc_file_analysis_prompt(file_path, file_info, content)
+
             elif file_type == 'sql_file' or file_path.endswith('.sql'):
                 from prompts.sql_file_prompt import get_sql_file_analysis_prompt
                 return get_sql_file_analysis_prompt(file_path, file_info, content)
@@ -380,6 +384,68 @@ JSON 형태로만 응답하세요."""
                     )
                 tables.append(dbio_table)
                 
+        # Pro*C 파일 특화 테이블들
+        elif file_path.endswith('.pc'):
+            # EXEC SQL 분석 테이블
+            if 'exec_sql_analysis' in llm_analysis:
+                exec_sql = llm_analysis['exec_sql_analysis']
+
+                # 커서 분석 테이블
+                if exec_sql.get('cursors'):
+                    cursor_table = Table(title="🔄 Cursor 분석", show_header=True, header_style="bold purple")
+                    cursor_table.add_column("커서명")
+                    cursor_table.add_column("쿼리 타입")
+                    cursor_table.add_column("대상 테이블")
+                    cursor_table.add_column("목적")
+
+                    for cursor in exec_sql['cursors']:
+                        tables_str = ', '.join(cursor.get('target_tables', [])) if isinstance(cursor.get('target_tables'), list) else str(cursor.get('target_tables', 'N/A'))
+                        cursor_table.add_row(
+                            cursor.get('cursor_name', 'N/A'),
+                            cursor.get('query_type', 'N/A'),
+                            tables_str,
+                            cursor.get('purpose', 'N/A')
+                        )
+                    tables.append(cursor_table)
+
+                # 호스트 변수 테이블
+                if exec_sql.get('host_variables') and exec_sql['host_variables'].get('declare_sections'):
+                    for section in exec_sql['host_variables']['declare_sections']:
+                        if section.get('variables'):
+                            host_table = Table(title="📋 호스트 변수", show_header=True, header_style="bold blue")
+                            host_table.add_column("변수명")
+                            host_table.add_column("타입")
+                            host_table.add_column("Nullable")
+                            host_table.add_column("설명")
+
+                            for var in section['variables']:
+                                nullable_text = "O" if var.get('nullable', False) else "X"
+                                host_table.add_row(
+                                    var.get('name', 'N/A'),
+                                    var.get('type', 'N/A'),
+                                    nullable_text,
+                                    var.get('description', 'N/A')
+                                )
+                            tables.append(host_table)
+
+            # 파일 I/O 분석 테이블
+            if 'file_io_analysis' in llm_analysis:
+                file_io = llm_analysis['file_io_analysis']
+                if file_io.get('write_structures'):
+                    file_table = Table(title="📁 파일 출력 구조체", show_header=True, header_style="bold green")
+                    file_table.add_column("구조체명")
+                    file_table.add_column("파일 형식")
+                    file_table.add_column("주요 필드")
+
+                    for ws in file_io['write_structures']:
+                        fields_str = ', '.join(f.get('name', '') for f in ws.get('key_fields', [])[:5]) if ws.get('key_fields') else 'N/A'
+                        file_table.add_row(
+                            ws.get('struct_name', 'N/A'),
+                            ws.get('file_type', 'N/A'),
+                            fields_str
+                        )
+                    tables.append(file_table)
+
         # XML 파일 특화 테이블들
         elif file_path.lower().endswith('.xml'):
             # TrxCode 분석 테이블

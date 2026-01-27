@@ -7,7 +7,7 @@ class LLMService:
         self.chat_completions_url = f"{self.base_url}/v1/chat/completions"
         self.current_session_id = None
 
-    def chat_completion(self, messages, model="gpt-4o-mini", context="aider", session_id=None, force_json=False):
+    def chat_completion(self, messages, model="gpt-4o", context="aider", session_id=None, force_json=False):
         headers = {
             "Content-Type": "application/json",
             # "Authorization": f"Bearer {os.getenv("OPENAI_API_KEY")}" # CoE-Backend handles its own auth

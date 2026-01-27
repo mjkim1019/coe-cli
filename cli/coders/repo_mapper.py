@@ -133,7 +133,7 @@ class RepoMapper:
     def _is_code_file(self, file_path: Path) -> bool:
         """코드 파일인지 확인"""
         code_extensions = {
-            '.py', '.c', '.h', '.cpp', '.hpp', '.java', '.js', '.ts',
+            '.py', '.c', '.pc', '.h', '.cpp', '.hpp', '.java', '.js', '.ts',
             '.xml', '.sql', '.go', '.rs', '.php', '.rb', '.swift'
         }
         return file_path.suffix in code_extensions
@@ -190,7 +190,7 @@ class RepoMapper:
 
         if ext == '.py':
             return self._analyze_python(content)
-        elif ext in ['.c', '.h']:
+        elif ext in ['.c', '.h', '.pc']:
             return self._analyze_c(content)
         elif ext in ['.cpp', '.hpp']:
             return self._analyze_cpp(content)

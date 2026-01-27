@@ -19,6 +19,8 @@ class PromptBuilder:
         self._cache_key = None
         # MiderAnalyzer 캐싱용 저장소
         self._mider_analysis_cache = {}
+        # Coder 전략별 프롬프트 오버라이드 (edit 모드에서 block/whole/udiff별 프롬프트 사용)
+        self._coder_prompts = None
 
     def _load_prompt_class(self):
         try:
@@ -37,6 +39,18 @@ class PromptBuilder:
             self.prompts = self._load_prompt_class()
             DebugManager.info(f"PromptBuilder task 변경됨: {task}")
 
+    def set_coder_prompts(self, prompts):
+        """편집 전략에 맞는 프롬프트 설정 (edit 모드에서 coder별 프롬프트 사용)"""
+        self._coder_prompts = prompts
+        if prompts:
+            DebugManager.info(f"Coder 프롬프트 설정됨: {type(prompts).__name__}")
+
+    def _get_active_prompts(self):
+        """현재 활성 프롬프트 반환 (coder 프롬프트 우선, 없으면 기본 프롬프트)"""
+        if self.task == 'edit' and self._coder_prompts is not None:
+            return self._coder_prompts
+        return self.prompts
+
     def build(self, user_input: str, file_context: dict, history: list = None, file_manager=None):
         # 입출력 관련 질문인지 검사
         io_keywords = ['입출력', 'input', 'output', 'in/out', 'inout', 'in out', 'io', '파라미터', '인자', '리턴값', '출력값', '바인드', 'bind']
@@ -46,8 +60,11 @@ class PromptBuilder:
 
         messages = []
 
+        # coder 전략별 프롬프트가 있으면 그것을 사용 (edit block/whole/udiff 구분)
+        active_prompts = self._get_active_prompts()
+
         # 1. Add the main system prompt
-        messages.append({"role": "system", "content": self.prompts.main_system})
+        messages.append({"role": "system", "content": active_prompts.main_system})
 
         # 2. Add repository map (if manually generated)
         repo_map = self._get_cached_repo_map()
@@ -62,8 +79,8 @@ class PromptBuilder:
 
         # 3. Add the file context
         if file_context:
-            messages.append({"role": "system", "content": self.prompts.files_content_prefix})
-            messages.append({"role": "assistant", "content": self.prompts.files_content_assistant_reply})
+            messages.append({"role": "system", "content": active_prompts.files_content_prefix})
+            messages.append({"role": "assistant", "content": active_prompts.files_content_assistant_reply})
 
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
@@ -90,8 +107,8 @@ class PromptBuilder:
         messages.append({"role": "user", "content": user_input})
 
         # 5. Add the system reminder at the end
-        if self.prompts.system_reminder:
-            messages.append({"role": "system", "content": self.prompts.system_reminder})
+        if active_prompts.system_reminder:
+            messages.append({"role": "system", "content": active_prompts.system_reminder})
 
         # 전체 프롬프트 구성 디버그 출력
         DebugManager.prompt(f"전체 프롬프트 메시지 수: {len(messages)}")
