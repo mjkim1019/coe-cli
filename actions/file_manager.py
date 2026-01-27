@@ -14,6 +14,7 @@ class FileManager:
     def __init__(self):
         self.files = {}
         self.c_file_info = {}  # C 파일의 구조 정보를 저장
+        self.pc_file_info = {}  # Pro*C 파일의 구조 정보를 저장
         self.sql_file_info = {}  # SQL 파일의 구조 정보를 저장
         self.tree_analyzer = FileTreeAnalyzer()  # 파일 트리 분석기
 
@@ -66,7 +67,7 @@ class FileManager:
         
         # 카테고리별로 파일들 분류
         for category, files in file_categories.items():
-            if category in ['c_files', 'header_files', 'sql_files', 'xml_files']:
+            if category in ['c_files', 'pc_files', 'header_files', 'sql_files', 'xml_files']:
                 # 주요 파일들
                 for file_info in files:
                     primary_files.append(file_info['full_path'])
@@ -201,6 +202,19 @@ class FileManager:
                     self.c_file_info[resolved_path] = analysis
                     result['analysis'] = self._enhance_c_file_analysis(content, analysis)
                     result['message'] = f"Read {resolved_path}, {line_count} lines"
+                # .pc 파일인 경우 Pro*C 구조 정보 추가
+                elif resolved_path.endswith('.pc'):
+                    result['file_type'] = 'pc_file'
+                    analysis = self._analyze_pc_file_structure(content)
+                    self.pc_file_info[resolved_path] = analysis
+                    result['analysis'] = analysis
+                    result['message'] = f"Read {resolved_path}, {line_count} lines"
+                    # Pro*C 필수 헤더 자동 로드
+                    zngm_path = self._resolve_file_path('zngm.h')
+                    if zngm_path and zngm_path not in self.files:
+                        zngm_result = self.add_single_file('zngm.h')
+                        if zngm_result['message']:
+                            result['message'] += f"\n  ↳ Auto-loaded: {zngm_result['message']}"
                 # .sql 파일인 경우 구조 정보 추가
                 elif resolved_path.endswith('.sql'):
                     result['file_type'] = 'sql_file'
@@ -261,6 +275,103 @@ class FileManager:
         """C 파일의 컨텍스트 정보를 반환"""
         if file_path in self.c_file_info:
             return self.c_file_info[file_path]
+        return None
+
+    def _analyze_pc_file_structure(self, content):
+        """Pro*C 파일의 임베디드 SQL 구조를 분석"""
+        import re
+
+        pc_features = {
+            'exec_sql_includes': [],
+            'host_variables': [],
+            'cursors': [],
+            'prepared_statements': [],
+            'functions': [],
+            'file_io_structs': [],
+            'program_header': {}
+        }
+
+        lines = content.splitlines()
+
+        # EXEC SQL INCLUDE 추출
+        include_pattern = r'EXEC\s+SQL\s+INCLUDE\s+(\S+)\s*;'
+        for match in re.finditer(include_pattern, content, re.IGNORECASE):
+            pc_features['exec_sql_includes'].append(match.group(1))
+
+        # EXEC SQL BEGIN/END DECLARE SECTION 내 호스트 변수 추출
+        declare_pattern = r'EXEC\s+SQL\s+BEGIN\s+DECLARE\s+SECTION\s*;(.*?)EXEC\s+SQL\s+END\s+DECLARE\s+SECTION\s*;'
+        for match in re.finditer(declare_pattern, content, re.DOTALL | re.IGNORECASE):
+            section_body = match.group(1)
+            # 변수 선언 추출 (간단한 패턴: type varname; 또는 type varname[size];)
+            var_pattern = r'^\s*(\w[\w\s\*]+?)\s+(\w+)(?:\s*\[([^\]]+)\])?\s*;'
+            for var_match in re.finditer(var_pattern, section_body, re.MULTILINE):
+                var_type = var_match.group(1).strip()
+                var_name = var_match.group(2)
+                var_size = var_match.group(3)
+                # 키워드 필터링
+                if var_type.upper() not in ('EXEC', 'SQL'):
+                    pc_features['host_variables'].append({
+                        'name': var_name,
+                        'type': var_type,
+                        'size': var_size
+                    })
+
+        # EXEC SQL DECLARE CURSOR 추출
+        cursor_pattern = r'EXEC\s+SQL\s+DECLARE\s+(\w+)\s+CURSOR\s+FOR'
+        for match in re.finditer(cursor_pattern, content, re.IGNORECASE):
+            pc_features['cursors'].append(match.group(1))
+
+        # EXEC SQL PREPARE 추출
+        prepare_pattern = r'EXEC\s+SQL\s+PREPARE\s+(\w+)\s+FROM'
+        for match in re.finditer(prepare_pattern, content, re.IGNORECASE):
+            pc_features['prepared_statements'].append(match.group(1))
+
+        # 함수 선언부 추출 (rep_* 패턴 및 일반 함수)
+        func_patterns = [
+            r'(?:static\s+)?(?:long|int|void|char\*?)\s+(rep_\w+)\s*\(',
+            r'(?:static\s+)?(?:long|int|void|char\*?)\s+(\w+)\s*\([^)]*\)\s*{'
+        ]
+        found_functions = set()
+        for pattern in func_patterns:
+            for match in re.finditer(pattern, content):
+                func_name = match.group(1)
+                if func_name not in found_functions:
+                    found_functions.add(func_name)
+
+        pc_features['functions'] = list(found_functions)
+
+        # 파일 I/O 구조체 추출 (st_*_file_w_* 패턴)
+        file_struct_pattern = r'(st_\w*file\w*)'
+        file_structs = set(re.findall(file_struct_pattern, content, re.IGNORECASE))
+        pc_features['file_io_structs'] = list(file_structs)
+
+        # 프로그램 헤더 정보 추출 (상단 주석에서)
+        header_block = content[:2000]  # 상단 2000자에서 검색
+
+        # TABLE CRUD 정보
+        table_crud_pattern = r'TABLE\s+CRUD\s*[:\-]?\s*(.+?)(?:\n|\*)'
+        match = re.search(table_crud_pattern, header_block, re.IGNORECASE)
+        if match:
+            pc_features['program_header']['table_crud'] = match.group(1).strip()
+
+        # FILE IN/OUT 정보
+        file_io_pattern = r'FILE\s+(?:IN/?OUT|INPUT|OUTPUT)\s*[:\-]?\s*(.+?)(?:\n|\*)'
+        match = re.search(file_io_pattern, header_block, re.IGNORECASE)
+        if match:
+            pc_features['program_header']['file_in_out'] = match.group(1).strip()
+
+        # 프로그램 설명
+        desc_pattern = r'(?:프로그램\s*설명|DESCRIPTION|설\s*명)\s*[:\-]?\s*(.+?)(?:\n|\*)'
+        match = re.search(desc_pattern, header_block, re.IGNORECASE)
+        if match:
+            pc_features['program_header']['description'] = match.group(1).strip()
+
+        return pc_features
+
+    def get_pc_file_context(self, file_path):
+        """Pro*C 파일의 컨텍스트 정보를 반환"""
+        if file_path in self.pc_file_info:
+            return self.pc_file_info[file_path]
         return None
 
     def _analyze_sql_file_structure(self, content):

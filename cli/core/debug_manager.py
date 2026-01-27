@@ -11,6 +11,7 @@ class DebugManager:
 
     색깔 코드:
     - RepoMap: cyan
+    - MiderAnalyzer: bright_yellow
     - FileAnalysis: yellow
     - Context: blue
     - Error: red
@@ -42,6 +43,13 @@ class DebugManager:
         if cls._debug_enabled:
             console = cls._get_console()
             console.print(f"[cyan dim][RepoMap DEBUG][/cyan dim] [dim]{message}[/dim]")
+
+    @classmethod
+    def mider_analyzer(cls, message: str):
+        """MiderAnalyzer 관련 디버그 출력 (bright_yellow)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[bright_yellow dim][MiderAnalyzer DEBUG][/bright_yellow dim] [dim]{message}[/dim]")
 
     @classmethod
     def file_analysis(cls, message: str):
@@ -77,6 +85,13 @@ class DebugManager:
         if cls._debug_enabled:
             console = cls._get_console()
             console.print(f"[magenta dim][LLM DEBUG][/magenta dim] [dim]{message}[/dim]")
+
+    @classmethod
+    def chunking(cls, message: str):
+        """파일 청킹 관련 디버그 출력 (dim bright_magenta)"""
+        if cls._debug_enabled:
+            console = cls._get_console()
+            console.print(f"[bright_magenta dim][Chunking DEBUG][/bright_magenta dim] [dim]{message}[/dim]")
 
     @classmethod
     def prompt(cls, message: str):

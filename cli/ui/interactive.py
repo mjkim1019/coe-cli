@@ -2,10 +2,14 @@
 Interactive UI module - Handles user interactions and mode switching
 """
 
+from click import File
 from rich.console import Console
 from typing import Dict, List, Any
 import re
 
+from actions.file_manager import FileManager
+
+analysis_keywords = ['구조 분석', '분석해줘', '어떤 파일', '파일 구조', '코드 분석']
 
 class InteractiveUI:
     """Handles interactive UI elements and mode switching"""
@@ -55,7 +59,7 @@ class InteractiveUI:
         
         # 점진적으로 배너 표시
         self.console.print()
-        with self.console.status("[bright_white]• Loading Swing CLI...", spinner="dots"):
+        with self.console.status("[bright_white]• Loading Mider...", spinner="dots"):
             time.sleep(1)
         
         self.console.print(main_panel)
@@ -94,6 +98,17 @@ class InteractiveUI:
         self.console.print(welcome_msg)
         self.console.print()
 
+    def display_tutorial_start_panel(self):
+        """튜토리얼 시작 패널 표시"""
+        from rich.panel import Panel
+        
+        return Panel(
+            "[bold cyan]튜토리얼 모드를 시작합니다...[/bold cyan]\n\n"
+            "실제 파일을 사용하여 Mider의 주요 기능을 단계별로 학습합니다.",
+            title="🎓 튜토리얼 모드",
+            border_style="cyan"
+        )
+
     def display_help_panel(self):
         """도움말 패널 - 아이콘 없이 dots 사용"""
         from rich.panel import Panel
@@ -101,12 +116,15 @@ class InteractiveUI:
         help_text = """
 [bold cyan]•  사용 가능한 명령어:[/bold cyan]
 
+[yellow]/tutorial[/yellow] - 단계별 튜토리얼 시작 (처음 사용자 권장!)
 [yellow]/add[/yellow] <file1|dir1> <file2|dir2> ... - 파일 또는 디렉토리를 재귀적으로 세션에 추가
 [yellow]/files[/yellow] - 현재 추가된 파일 목록을 테이블로 보기
 [yellow]/tree[/yellow] - 추가된 파일을 트리 구조로 보기
 [yellow]/info[/yellow] <file> - 이미 추가된 파일의 상세 분석 정보 다시 보기
 [yellow]/repo[/yellow] <file1> <file2> ... - 지정한 파일들로 Repository Map 생성 (질문 시 자동 포함)
 [yellow]/repo[/yellow] - 현재 Repository Map 상태 확인
+[yellow]/mider-cache status[/yellow] - MiderAnalyzer 캐시 상태 확인
+[yellow]mider init[/yellow] - AGENTS.md 문서로 프로젝트 초기화
 [yellow]/clear[/yellow] - 대화 기록 초기화
 
 
@@ -136,6 +154,12 @@ class InteractiveUI:
 [yellow]/exit[/yellow] or [yellow]/quit[/yellow] - CLI 종료
 
 
+[bold cyan]•  AI 작업 자동화:[/bold cyan]
+
+[yellow]/architect[/yellow] "자연어 요청" - AI 작업 오케스트레이션 (복잡한 작업 자동 분해 및 실행)
+[yellow]/resume[/yellow] - 저장된 계획 목록 보기 및 재실행
+
+
 [bold cyan]•  편집 전략 예시:[/bold cyan]
 
 [yellow]/edit udiff[/yellow] - "print 오타 수정해줘" (정밀 수정)
@@ -144,6 +168,7 @@ class InteractiveUI:
 
 
 [dim]💡 팁: .c 파일과 .sql 파일은 자동으로 구조를 분석합니다![/dim]
+[dim]🎓 처음 사용하시나요? /tutorial 명령으로 실습하세요![/dim]
 
 [bold cyan]•  키보드 단축키:[/bold cyan]
 [dim]Ctrl+C[/dim] - 현재 작업 중단
@@ -167,13 +192,15 @@ class InteractiveUI:
         from rich.panel import Panel
         
         known_commands = ['/add', '/files', '/tree', '/analyze', '/info', '/clear', '/preview', '/apply',
-                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit']
+                        '/history', '/debug', '/rollback', '/ask', '/edit', '/new', '/session', '/session-reset', '/mcp', '/help', '/exit', '/quit', '/mider-cache', '/tutorial']
         
         if command_part not in [cmd.lower() for cmd in known_commands]:
             error_panel = Panel(
                 f"[red]• 알 수 없는 명령어: '{command_part}'[/red]\n\n"
                 f"[white]• 사용 가능한 명령어:[/white]\n"
+                f"[dim white]• 튜토리얼: /tutorial[/dim white]\n"
                 f"[dim white]• 파일 관리: /add, /files, /tree, /analyze, /info, /clear[/dim white]\n"
+                f"[dim white]• 분석 도구: /repo, /mider-cache[/dim white]\n"
                 f"[dim white]• 모드 전환: /ask, /edit[/dim white]\n"
                 f"[dim white]• 편집 기능: /preview, /apply, /history, /rollback, /debug[/dim white]\n"
                 f"[dim white]• 세션 관리: /session, /session-reset[/dim white]\n"
@@ -217,7 +244,6 @@ class InteractiveUI:
             r'@([a-zA-Z0-9_/\\.-]+)',                # @로 시작하는 파일 참조
         ]
         
-        analysis_keywords = ['분석', '분석해', '봐줘', 'analyze', '설명해', '알려줘']
         
         detected_files = []
         for pattern in file_patterns:

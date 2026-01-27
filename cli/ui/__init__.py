@@ -1,11 +1,11 @@
 """
-UI modules for Swing CLI
+UI modules for Mider
 Inspired by Aider's GUI architecture pattern
 """
 
-from .components import SwingUIComponents
+from .components import MiderUIComponents
 from .panels import UIPanels
 from .formatters import ResponseFormatter
 from .interactive import InteractiveUI
 
-__all__ = ['SwingUIComponents', 'UIPanels', 'ResponseFormatter', 'InteractiveUI']
+__all__ = ['MiderUIComponents', 'UIPanels', 'ResponseFormatter', 'InteractiveUI']

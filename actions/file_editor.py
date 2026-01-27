@@ -163,7 +163,7 @@ class EditOperation:
 class FileEditor:
     """파일 편집 및 버전 관리 시스템"""
     
-    def __init__(self, backup_dir: str = ".swing_backups"):
+    def __init__(self, backup_dir: str = ".mider_backups"):
         self.backup_dir = Path(backup_dir)
         self.backup_dir.mkdir(exist_ok=True)
         

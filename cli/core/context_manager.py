@@ -1,4 +1,13 @@
 import importlib
+import datetime
+import tempfile
+import os
+import json
+from io import StringIO
+from rich.console import Console
+
+from .analyzer import MiderAnalyzer
+from ..ui.interactive import analysis_keywords
 from .debug_manager import DebugManager
 
 class PromptBuilder:
@@ -8,6 +17,10 @@ class PromptBuilder:
         # RepoMap 캐싱용 저장소
         self._repo_map_cache = {}
         self._cache_key = None
+        # MiderAnalyzer 캐싱용 저장소
+        self._mider_analysis_cache = {}
+        # Coder 전략별 프롬프트 오버라이드 (edit 모드에서 block/whole/udiff별 프롬프트 사용)
+        self._coder_prompts = None
 
     def _load_prompt_class(self):
         try:
@@ -19,6 +32,25 @@ class PromptBuilder:
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Invalid task name '{self.task}'. Could not load prompts.") from e
 
+    def set_task(self, task: str):
+        """캐시를 유지하면서 task 모드 변경"""
+        if self.task != task:
+            self.task = task
+            self.prompts = self._load_prompt_class()
+            DebugManager.info(f"PromptBuilder task 변경됨: {task}")
+
+    def set_coder_prompts(self, prompts):
+        """편집 전략에 맞는 프롬프트 설정 (edit 모드에서 coder별 프롬프트 사용)"""
+        self._coder_prompts = prompts
+        if prompts:
+            DebugManager.info(f"Coder 프롬프트 설정됨: {type(prompts).__name__}")
+
+    def _get_active_prompts(self):
+        """현재 활성 프롬프트 반환 (coder 프롬프트 우선, 없으면 기본 프롬프트)"""
+        if self.task == 'edit' and self._coder_prompts is not None:
+            return self._coder_prompts
+        return self.prompts
+
     def build(self, user_input: str, file_context: dict, history: list = None, file_manager=None):
         # 입출력 관련 질문인지 검사
         io_keywords = ['입출력', 'input', 'output', 'in/out', 'inout', 'in out', 'io', '파라미터', '인자', '리턴값', '출력값', '바인드', 'bind']
@@ -28,8 +60,11 @@ class PromptBuilder:
 
         messages = []
 
+        # coder 전략별 프롬프트가 있으면 그것을 사용 (edit block/whole/udiff 구분)
+        active_prompts = self._get_active_prompts()
+
         # 1. Add the main system prompt
-        messages.append({"role": "system", "content": self.prompts.main_system})
+        messages.append({"role": "system", "content": active_prompts.main_system})
 
         # 2. Add repository map (if manually generated)
         repo_map = self._get_cached_repo_map()
@@ -44,18 +79,26 @@ class PromptBuilder:
 
         # 3. Add the file context
         if file_context:
-            messages.append({"role": "system", "content": self.prompts.files_content_prefix})
-            messages.append({"role": "assistant", "content": self.prompts.files_content_assistant_reply})
+            messages.append({"role": "system", "content": active_prompts.files_content_prefix})
+            messages.append({"role": "assistant", "content": active_prompts.files_content_assistant_reply})
 
             for file_path, content in file_context.items():
                 file_str = f"File: {file_path}\n```\n{content}\n```"
 
-                # 상세 구조 분석 정보 추가 (백그라운드에서 CoeAnalyzer 사용)
+                # 상세 구조 분석 정보 추가 (백그라운드에서 MiderAnalyzer 사용)
                 detailed_analysis = self._get_detailed_analysis(file_path, content)
                 if detailed_analysis:
                     file_str += f"\n\n{detailed_analysis}"
 
                 messages.append({"role": "system", "content": file_str})
+
+        # 4. Add MiderAnalyzer results if available (for structure analysis requests)
+        mider_analysis = self._get_relevant_mider_analysis(user_input, file_context)
+        if mider_analysis:
+            for file_path, analysis in mider_analysis.items():
+                analysis_str = f"File Structure Analysis for {file_path}:\n{json.dumps(analysis, ensure_ascii=False, indent=2)}"
+                messages.append({"role": "system", "content": analysis_str})
+                DebugManager.mider_analyzer(f"MiderAnalyzer 결과를 프롬프트에 포함: {file_path}")
 
         # 4. Add existing history
         messages.extend(history)
@@ -64,8 +107,8 @@ class PromptBuilder:
         messages.append({"role": "user", "content": user_input})
 
         # 5. Add the system reminder at the end
-        if self.prompts.system_reminder:
-            messages.append({"role": "system", "content": self.prompts.system_reminder})
+        if active_prompts.system_reminder:
+            messages.append({"role": "system", "content": active_prompts.system_reminder})
 
         # 전체 프롬프트 구성 디버그 출력
         DebugManager.prompt(f"전체 프롬프트 메시지 수: {len(messages)}")
@@ -79,9 +122,9 @@ class PromptBuilder:
         return messages
 
     def _get_detailed_analysis(self, file_path, content):
-        """CoeAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
+        """MiderAnalyzer를 사용하여 파일의 상세 분석 정보 생성 (화면 표시 없음)"""
         try:
-            from .analyzer import CoeAnalyzer
+            from .analyzer import MiderAnalyzer
             import tempfile
             import os
             
@@ -91,8 +134,8 @@ class PromptBuilder:
                 tmp_path = tmp_file.name
             
             try:
-                # CoeAnalyzer로 분석 (화면 출력 없이)
-                analyzer = CoeAnalyzer()
+                # MiderAnalyzer로 분석 (화면 출력 없이)
+                analyzer = MiderAnalyzer()
                 # console 출력을 비활성화하기 위해 quiet 모드로 분석
                 original_console = analyzer.console
                 from rich.console import Console
@@ -392,6 +435,324 @@ class PromptBuilder:
         latest_size = len(self._repo_map_cache[latest_key])
 
         return f"✅ 캐시된 레포맵: {cache_count}개, 최신 크기: {latest_size} chars"
+
+    def get_cached_mider_analysis(self, file_path: str):
+        """캐싱된 MiderAnalyzer 분석 결과 반환"""
+        if file_path in self._mider_analysis_cache:
+            cached_data = self._mider_analysis_cache[file_path]
+            DebugManager.mider_analyzer(f"✅ 캐시된 MiderAnalyzer 결과 사용: {file_path}")
+            return cached_data.get('analysis')
+        return None
+
+    def perform_mider_analysis_on_demand(self, file_path: str, file_content: str, file_manager=None):
+        """요청 시에만 MiderAnalyzer 실행하고 캐싱"""
+        try:
+            DebugManager.mider_analyzer(f"MiderAnalyzer 실행 시작: {file_path}")
+            # MiderAnalyzer 인스턴스 생성
+            analyzer = MiderAnalyzer()
+            # 임시 파일 생성하여 분석 (기존 _get_detailed_analysis 로직 참고)
+            with tempfile.NamedTemporaryFile(mode='w', suffix=os.path.splitext(file_path)[1], delete=False, encoding='utf-8') as tmp_file:
+                tmp_file.write(file_content)
+                tmp_path = tmp_file.name
+
+            try:
+                # 화면 출력 없이 분석 수행
+                original_console = analyzer.console
+
+
+                # 출력을 StringIO로 리다이렉트
+                quiet_console = Console(file=StringIO(), stderr=False)
+                analyzer.console = quiet_console
+
+                # LLM 분석 수행 (기본 분석 + LLM 심화 분석)
+                results = analyzer.analyze_files([tmp_path], use_llm=True)
+
+                # 원래 console 복원
+                analyzer.console = original_console
+
+                if results and 'files' in results and tmp_path in results['files']:
+                    file_info = results['files'][tmp_path]
+
+                    # 캐시에 저장
+                    cache_data = {
+                        'timestamp': datetime.datetime.now().isoformat(),
+                        'analysis': {
+                            'basic_analysis': file_info.get('basic_analysis', {}),
+                            'llm_analysis': file_info.get('llm_analysis', {}),
+                            'file_type': file_info.get('file_type', 'unknown')
+                        }
+                    }
+
+                    self._mider_analysis_cache[file_path] = cache_data
+
+                    DebugManager.mider_analyzer(f"✅ MiderAnalyzer 분석 완료 및 캐시 저장: {file_path}")
+                    return cache_data['analysis']
+                else:
+                    DebugManager.mider_analyzer(f"❌ MiderAnalyzer 분석 결과 없음: {file_path}")
+                    return None
+
+            finally:
+                # 임시 파일 삭제
+                os.unlink(tmp_path)
+
+        except Exception as e:
+            DebugManager.error(f"MiderAnalyzer 분석 실패 ({file_path}): {e}")
+            return None
+
+    def get_mider_cache_status(self):
+        """MiderAnalyzer 캐시 상태 확인"""
+        if not self._mider_analysis_cache:
+            return "❌ 캐시된 MiderAnalyzer 분석 결과 없음"
+
+        cache_count = len(self._mider_analysis_cache)
+        cached_files = list(self._mider_analysis_cache.keys())
+
+        status = f"✅ 캐시된 MiderAnalyzer 분석: {cache_count}개 파일\n"
+        for file_path in cached_files:
+            filename = os.path.basename(file_path)
+            timestamp = self._mider_analysis_cache[file_path].get('timestamp', 'unknown')
+            status += f"  • {filename} ({timestamp})\n"
+
+        return status.strip()
+
+    def _get_relevant_mider_analysis(self, user_input: str, file_context: dict):
+        """사용자 입력과 파일 컨텍스트를 기반으로 관련된 MiderAnalyzer 분석 결과 반환"""
+        # 구조 분석 키워드 감지
+   
+        has_analysis_request = any(keyword in user_input.lower() for keyword in analysis_keywords)
+
+        if not has_analysis_request:
+            return {}
+
+        DebugManager.mider_analyzer(f"구조 분석 키워드 감지됨: {user_input[:50]}...")
+
+        # 분석 요청이 감지된 경우, 컨텍스트의 모든 파일에 대해 MiderAnalyzer 결과 확인
+        relevant_analysis = {}
+
+        if file_context:
+            for file_path, content in file_context.items():
+                # 캐시된 결과 확인
+                cached_analysis = self.get_cached_mider_analysis(file_path)
+
+                if cached_analysis:
+                    relevant_analysis[file_path] = cached_analysis
+                else:
+                    # 캐시에 없으면 새로 분석 수행
+                    DebugManager.mider_analyzer(f"MiderAnalyzer 새 분석 수행: {file_path}")
+                    new_analysis = self.perform_mider_analysis_on_demand(file_path, content, None)
+                    if new_analysis:
+                        relevant_analysis[file_path] = new_analysis
+
+        if relevant_analysis:
+            DebugManager.mider_analyzer(f"MiderAnalyzer 분석 결과 {len(relevant_analysis)}개 파일에 대해 프롬프트에 포함")
+
+        return relevant_analysis
+
+    def build_with_chunking(self, user_input: str, file_context: dict, history: list = None,
+                             file_manager=None, llm_service=None, console=None):
+        """대용량 파일 자동 감지 → 청크 분할 → 개별 LLM 호출 → 결과 통합
+
+        Returns:
+            (messages, None)          — 청킹 불필요, 기존 방식으로 호출
+            (None, aggregated_answer) — 청킹 완료, 통합 답변 반환
+        """
+        from .file_chunker import FileChunker
+
+        if history is None:
+            history = []
+
+        chunker = FileChunker()
+
+        # 대용량 파일 분류
+        large_files = {}   # 청킹 대상
+        small_files = {}   # 기존 방식
+        for fpath, content in (file_context or {}).items():
+            if chunker.needs_chunking(content):
+                large_files[fpath] = content
+            else:
+                small_files[fpath] = content
+
+        if not large_files:
+            # 대용량 파일 없음 → 기존 build() 사용
+            messages = self.build(user_input, file_context, history, file_manager)
+            return messages, None
+
+        DebugManager.chunking(
+            f"대용량 파일 {len(large_files)}개 감지 → 청크 분석 모드 전환"
+        )
+
+        if console:
+            from rich.panel import Panel
+            console.print(Panel(
+                f"[bold bright_magenta]대용량 파일 감지[/bold bright_magenta]\n"
+                f"청크 분할 분석을 시작합니다 ({len(large_files)}개 파일)",
+                border_style="bright_magenta"
+            ))
+
+        # --- Map 단계: 각 청크를 개별 LLM 호출로 분석 ---
+        all_chunk_results = []  # (file_path, chunk, llm_answer)
+
+        for fpath, content in large_files.items():
+            chunking_result = chunker.chunk_file(fpath, content)
+            if not chunking_result:
+                continue
+
+            DebugManager.chunking(
+                f"{os.path.basename(fpath)}: {len(chunking_result.chunks)}개 청크로 분할"
+            )
+
+            for chunk in chunking_result.chunks:
+                # 청크별 프롬프트 구성
+                chunk_messages = self._build_chunk_messages(
+                    user_input, chunk, small_files, history
+                )
+
+                if console:
+                    console.print(
+                        f"  [bright_magenta]▶ 청크 {chunk.chunk_index + 1}/"
+                        f"{chunk.total_chunks} 분석 중... "
+                        f"(lines {chunk.start_line}-{chunk.end_line})[/bright_magenta]"
+                    )
+
+                # LLM 호출
+                response = llm_service.chat_completion(chunk_messages)
+                if response and "choices" in response:
+                    answer = response["choices"][0]["message"]["content"]
+                    all_chunk_results.append((fpath, chunk, answer))
+                    DebugManager.chunking(
+                        f"  청크 {chunk.chunk_index + 1} 응답: {len(answer)} chars"
+                    )
+                else:
+                    DebugManager.error(
+                        f"청크 {chunk.chunk_index + 1} LLM 호출 실패"
+                    )
+
+        if not all_chunk_results:
+            # 모든 청크 호출 실패 → 기존 방식 fallback
+            DebugManager.chunking("모든 청크 LLM 호출 실패 → fallback")
+            messages = self.build(user_input, file_context, history, file_manager)
+            return messages, None
+
+        # --- Reduce 단계: 청크 결과를 통합 ---
+        aggregated = self._aggregate_chunk_results(
+            user_input, all_chunk_results, llm_service, console
+        )
+
+        return None, aggregated
+
+    def _build_chunk_messages(self, user_input: str, chunk, small_files: dict,
+                              history: list) -> list:
+        """개별 청크용 프롬프트 메시지를 구성합니다."""
+        active_prompts = self._get_active_prompts()
+        messages = []
+
+        # 시스템 프롬프트
+        messages.append({"role": "system", "content": active_prompts.main_system})
+
+        # 청크 컨텍스트
+        chunk_header_info = ""
+        if chunk.context_header:
+            chunk_header_info = (
+                f"\n\n--- File Header (includes/defines) ---\n"
+                f"```\n{chunk.context_header}\n```"
+            )
+
+        func_info = ""
+        if chunk.functions:
+            func_info = f"\n포함된 함수: {', '.join(chunk.functions)}"
+
+        chunk_context = (
+            f"[대용량 파일 청크 분석 모드]\n"
+            f"File: {chunk.file_path}\n"
+            f"Chunk {chunk.chunk_index + 1}/{chunk.total_chunks} "
+            f"(lines {chunk.start_line}-{chunk.end_line})"
+            f"{func_info}"
+            f"{chunk_header_info}\n\n"
+            f"--- Chunk Content ---\n"
+            f"```\n{chunk.content}\n```"
+        )
+        messages.append({"role": "system", "content": chunk_context})
+
+        # 작은 파일들도 포함 (참조용)
+        for fpath, content in small_files.items():
+            file_str = f"File: {fpath}\n```\n{content}\n```"
+            messages.append({"role": "system", "content": file_str})
+
+        # 히스토리
+        messages.extend(history)
+
+        # 사용자 질문 + 청크 안내
+        user_msg = (
+            f"{user_input}\n\n"
+            f"[참고: 이 파일은 대용량이므로 청크별로 분석 중입니다. "
+            f"현재 청크 {chunk.chunk_index + 1}/{chunk.total_chunks}에 대해 답변해주세요. "
+            f"이 청크에서 발견된 내용만 답변하고, 발견되지 않으면 '이 청크에서는 해당 내용이 발견되지 않았습니다'라고 답해주세요.]"
+        )
+        messages.append({"role": "user", "content": user_msg})
+
+        return messages
+
+    def _aggregate_chunk_results(self, user_input: str, chunk_results: list,
+                                 llm_service, console=None) -> str:
+        """청크별 LLM 응답을 통합하여 최종 답변을 생성합니다."""
+        DebugManager.chunking(f"청크 결과 통합 시작: {len(chunk_results)}개 결과")
+
+        if console:
+            console.print(
+                f"\n  [bright_magenta]▶ {len(chunk_results)}개 청크 결과 통합 중...[/bright_magenta]"
+            )
+
+        # 통합 프롬프트 구성
+        results_text = ""
+        for fpath, chunk, answer in chunk_results:
+            func_info = ""
+            if chunk.functions:
+                func_info = f" (함수: {', '.join(chunk.functions)})"
+            results_text += (
+                f"\n--- {os.path.basename(fpath)} 청크 {chunk.chunk_index + 1}/"
+                f"{chunk.total_chunks} (lines {chunk.start_line}-{chunk.end_line})"
+                f"{func_info} ---\n"
+                f"{answer}\n"
+            )
+
+        aggregation_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "당신은 대용량 파일 분석 결과를 통합하는 전문가입니다.\n"
+                    "여러 청크로 나뉘어 분석된 결과를 종합하여 하나의 완성된 답변을 만들어주세요.\n"
+                    "중복 내용은 제거하고, 청크 순서에 맞게 정리하세요.\n"
+                    "원래 사용자 질문에 대한 포괄적인 답변을 제공하세요."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"원래 질문: {user_input}\n\n"
+                    f"아래는 대용량 파일을 청크별로 분석한 결과입니다:\n"
+                    f"{results_text}\n\n"
+                    f"위 청크별 분석 결과를 종합하여 원래 질문에 대한 "
+                    f"하나의 통합된 답변을 생성해주세요."
+                ),
+            },
+        ]
+
+        response = llm_service.chat_completion(aggregation_messages)
+        if response and "choices" in response:
+            aggregated = response["choices"][0]["message"]["content"]
+            DebugManager.chunking(f"통합 답변 생성 완료: {len(aggregated)} chars")
+            return aggregated
+
+        # 통합 LLM 호출 실패 → 청크 결과를 그냥 이어붙임
+        DebugManager.error("청크 결과 통합 LLM 호출 실패 → 단순 연결 fallback")
+        fallback = "## 청크별 분석 결과\n\n"
+        for fpath, chunk, answer in chunk_results:
+            fallback += (
+                f"### {os.path.basename(fpath)} "
+                f"(lines {chunk.start_line}-{chunk.end_line})\n"
+                f"{answer}\n\n"
+            )
+        return fallback
 
     def _extract_mentioned_files(self, text: str):
         """텍스트에서 언급된 파일명 추출"""

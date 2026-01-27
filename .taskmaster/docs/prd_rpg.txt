@@ -1,0 +1,747 @@
+# Mider - Product Requirements Document (RPG Method)
+## Version: 2026 Q1 | Repository Planning Graph Structure
+
+---
+
+## Problem Statement
+
+Enterprise developers working with legacy codebases (C, SQL, XML) spend significant time understanding complex code structures, tracing call relationships, and making safe modifications. Existing tools either:
+- Lack domain-specific understanding (generic IDEs)
+- Require context switching between multiple tools
+- Don't provide AI-assisted analysis tailored to enterprise patterns (IO Formatters, TrxCodes, DBIO)
+
+**Pain Points:**
+- New team members take weeks to understand legacy code structure
+- Code reviews miss domain-specific patterns (Oracle hints, (+) joins)
+- Manual tracing of TrxCode → C program → SQL relationships
+- No unified tool for analyze → ask → edit → test workflow
+
+## Target Users
+
+**Primary: Enterprise Developers**
+- Work with C programs, SQL procedures, XML UI definitions
+- Need to understand legacy code quickly
+- Make targeted modifications with confidence
+
+**Secondary: System Administrators**
+- Review code before deployment
+- Need quick structural understanding
+- Verify changes don't break dependencies
+
+## Success Metrics
+
+| Metric | Target | Current |
+|--------|--------|---------|
+| Code structure analysis accuracy | ≥85% user satisfaction | Baseline TBD |
+| Average response time (cached) | ≤3 seconds | ~5 seconds |
+| Average response time (non-cached) | ≤8 seconds | ~12 seconds |
+| Memory usage (50 files) | <500MB | ~800MB |
+| Test coverage | ≥70% | ~30% |
+| Tutorial completion rate | ≥80% | N/A |
+| Session restore success | ≥95% | N/A |
+
+---
+
+## Capability Tree
+
+### Capability: Core Analysis Engine
+Provides LLM-powered code structure analysis with file-type specialization.
+
+#### Feature: File Type Detection
+- **Description**: Automatically detect and categorize files by type (C, SQL, XML, generic)
+- **Inputs**: File path, file content
+- **Outputs**: FileType enum, confidence score
+- **Behavior**: Check extension, validate content patterns, return categorization
+
+#### Feature: C File Analysis
+- **Description**: Analyze C files for IO Formatters, DBIO patterns, standard functions
+- **Inputs**: C file content, analysis depth level
+- **Outputs**: Structured analysis (functions, call graph, IO structures)
+- **Behavior**: Parse functions (a000_init, b000_validation, c000_main, z999_error), extract DBIO calls, identify IO Formatter structures
+
+#### Feature: SQL File Analysis
+- **Description**: Analyze SQL files for Oracle-specific patterns
+- **Inputs**: SQL file content
+- **Outputs**: Bind variables, joins, hints, nullable info
+- **Behavior**: Parse Oracle SQL, detect (+) joins, extract hints, identify date patterns (99991231)
+
+#### Feature: XML File Analysis
+- **Description**: Analyze XML UI files for TrxCode patterns
+- **Inputs**: XML file content
+- **Outputs**: TrxCodes, UI components, scwin.xxx functions, data flows
+- **Behavior**: Parse XML structure, extract JavaScript functions, map data bindings
+
+#### Feature: Repository Mapping
+- **Description**: Generate lightweight repository structure maps
+- **Inputs**: Directory path, priority rules
+- **Outputs**: RepoMap with file relationships
+- **Behavior**: Scan directories, prioritize by file type, cache results
+
+### Capability: Interactive CLI Interface
+Provides REPL-based interaction with rich UI formatting.
+
+#### Feature: Command Parser
+- **Description**: Parse and route user commands to appropriate handlers
+- **Inputs**: User input string
+- **Outputs**: Parsed command, arguments
+- **Behavior**: Identify command prefix (/add, /ask, etc.), extract arguments, validate syntax
+
+#### Feature: Mode Management
+- **Description**: Switch between ASK and EDIT modes
+- **Inputs**: Mode switch command
+- **Outputs**: Mode state change
+- **Behavior**: Update current mode, load appropriate prompts, notify UI
+
+#### Feature: Rich UI Rendering
+- **Description**: Display formatted output using Rich library
+- **Inputs**: Content, display type (panel, table, tree)
+- **Outputs**: Rendered terminal output
+- **Behavior**: Format content, apply styling, handle terminal width
+
+#### Feature: Auto-completion
+- **Description**: Provide command and file path completion
+- **Inputs**: Partial input, context
+- **Outputs**: Completion suggestions
+- **Behavior**: Match commands, scan file paths, rank suggestions
+
+### Capability: Code Editing System
+Provides three-strategy file editing with backup and rollback.
+
+#### Feature: WholeFile Strategy
+- **Description**: Replace entire file contents
+- **Inputs**: File path, new content
+- **Outputs**: Applied change, backup reference
+- **Behavior**: Backup original, validate content, write new file
+
+#### Feature: EditBlock Strategy
+- **Description**: Replace specific code blocks
+- **Inputs**: File path, block markers, new content
+- **Outputs**: Applied change, affected lines
+- **Behavior**: Locate block boundaries, preserve context, apply replacement
+
+#### Feature: Udiff Strategy
+- **Description**: Apply unified diff patches
+- **Inputs**: File path, diff content
+- **Outputs**: Patched file, conflict status
+- **Behavior**: Parse diff, locate hunks, apply patches with conflict detection
+
+#### Feature: Backup & Rollback
+- **Description**: Maintain edit history with undo capability
+- **Inputs**: File path, operation ID
+- **Outputs**: Restored file state
+- **Behavior**: Store timestamped backups, track operation chain, support rollback
+
+### Capability: AI Orchestration
+Provides multi-step task planning and execution.
+
+#### Feature: Plan Generation
+- **Description**: Generate execution plans from natural language requests
+- **Inputs**: User request, context
+- **Outputs**: ExecutionPlan with ordered steps
+- **Behavior**: Analyze request, decompose into steps, assign commands
+
+#### Feature: Plan Execution
+- **Description**: Execute plans step-by-step with user approval
+- **Inputs**: ExecutionPlan, approval mode
+- **Outputs**: Execution results per step
+- **Behavior**: Execute steps sequentially, handle failures, allow intervention
+
+#### Feature: Plan Persistence
+- **Description**: Save and restore execution plans
+- **Inputs**: Plan state, file path
+- **Outputs**: Serialized plan / restored state
+- **Behavior**: Serialize to YAML, track completion state, enable resume
+
+### Capability: Session Management
+Provides session state persistence and restoration.
+
+#### Feature: Session State Tracking
+- **Description**: Track current session state (files, history, mode, cache)
+- **Inputs**: State changes
+- **Outputs**: Current session snapshot
+- **Behavior**: Maintain in-memory state, track changes incrementally
+
+#### Feature: Session Persistence
+- **Description**: Save session to disk for later restoration
+- **Inputs**: Session state, save path
+- **Outputs**: Serialized session file
+- **Behavior**: Serialize state to JSON, include timestamps, handle large contexts
+
+#### Feature: Session Restoration
+- **Description**: Restore previous session state
+- **Inputs**: Session file path
+- **Outputs**: Restored session state
+- **Behavior**: Deserialize JSON, validate integrity, rebuild caches
+
+### Capability: Performance Optimization
+Provides caching and optimization for responsive experience.
+
+#### Feature: Analysis Caching
+- **Description**: Cache analysis results with file-hash keys
+- **Inputs**: File path, analysis type
+- **Outputs**: Cached result or cache miss
+- **Behavior**: Hash file content, lookup cache, invalidate on change
+
+#### Feature: Prompt Caching
+- **Description**: Cache LLM prompts for repeated queries
+- **Inputs**: Prompt hash
+- **Outputs**: Cached response or cache miss
+- **Behavior**: Hash prompt content, store responses, manage TTL
+
+#### Feature: Memory Optimization
+- **Description**: Optimize memory usage for large contexts
+- **Inputs**: Context size, memory limit
+- **Outputs**: Optimized context
+- **Behavior**: Lazy load files, implement LRU eviction, paginate large files
+
+---
+
+## Repository Structure
+
+```
+mider/
+├── cli/
+│   ├── main.py                    # Entry point, command routing
+│   ├── completer.py               # Auto-completion
+│   ├── core/
+│   │   ├── analyzer.py            # MiderAnalyzer (was CoeAnalyzer)
+│   │   ├── context_manager.py     # Prompt building, caching
+│   │   ├── architect_mode.py      # AI orchestration
+│   │   ├── architect_plan.py      # Plan data structures
+│   │   ├── architect_prompts.py   # Orchestration prompts
+│   │   ├── debug_manager.py       # Unified logging
+│   │   ├── mcp_integration.py     # MCP tool integration
+│   │   ├── session_manager.py     # Session persistence (NEW)
+│   │   ├── ask_prompts.py         # ASK mode prompts
+│   │   ├── edit_prompts.py        # EDIT mode prompts
+│   │   └── base_prompts.py        # Base prompt class
+│   ├── coders/
+│   │   ├── base_coder.py          # Strategy pattern base
+│   │   ├── wholefile_coder.py     # Full file replacement
+│   │   ├── editblock_coder.py     # Block editing
+│   │   ├── udiff_coder.py         # Unified diff
+│   │   ├── repo_mapper.py         # Repository mapping
+│   │   └── *_prompts.py           # Strategy-specific prompts
+│   └── ui/
+│       ├── components.py          # Rich UI components
+│       ├── interactive.py         # Interactive UI logic
+│       ├── panels.py              # Panel templates
+│       ├── formatters.py          # Response formatting
+│       └── tutorial.py            # Tutorial mode
+├── actions/
+│   ├── file_manager.py            # File context management
+│   ├── file_editor.py             # Edit operations, backup
+│   ├── file_tree_analyzer.py      # Directory analysis
+│   ├── template_manager.py        # Template handling
+│   └── document_generator.py      # AGENTS.md generation
+├── prompts/
+│   ├── c_file_prompt.py           # C-specific analysis
+│   ├── sql_file_prompt.py         # SQL-specific analysis
+│   ├── xml_file_prompt.py         # XML-specific analysis
+│   └── generic_file_prompt.py     # Generic analysis
+├── llm/
+│   └── service.py                 # LLM API client
+├── mcp/
+│   ├── client.py                  # MCP HTTP client
+│   └── tools.py                   # Tool execution
+├── tests/
+│   ├── unit/                      # Unit tests (NEW)
+│   ├── integration/               # Integration tests (NEW)
+│   └── fixtures/                  # Test fixtures
+└── run.py                         # CLI entry point
+```
+
+## Module Definitions
+
+### Module: cli/core/analyzer.py
+- **Maps to capability**: Core Analysis Engine
+- **Responsibility**: LLM-powered code structure analysis
+- **Exports**:
+  - `MiderAnalyzer` - Main analysis class
+  - `analyze_file()` - Single file analysis
+  - `analyze_batch()` - Multi-file analysis
+
+### Module: cli/core/context_manager.py
+- **Maps to capability**: Performance Optimization (caching), Core Analysis
+- **Responsibility**: Build prompts, manage analysis cache
+- **Exports**:
+  - `PromptBuilder` - Dynamic prompt construction
+  - `get_cached_analysis()` - Cache lookup
+  - `invalidate_cache()` - Cache management
+
+### Module: cli/core/session_manager.py (NEW)
+- **Maps to capability**: Session Management
+- **Responsibility**: Session state persistence and restoration
+- **Exports**:
+  - `SessionManager` - Session lifecycle management
+  - `save_session()` - Persist to disk
+  - `load_session()` - Restore from disk
+  - `get_session_list()` - List available sessions
+
+### Module: cli/coders/
+- **Maps to capability**: Code Editing System
+- **Responsibility**: Multi-strategy file editing
+- **Exports**:
+  - `CoderRegistry` - Strategy selection
+  - `WholeFileCoder` - Full replacement
+  - `EditBlockCoder` - Block editing
+  - `UdiffCoder` - Diff-based editing
+
+### Module: cli/ui/
+- **Maps to capability**: Interactive CLI Interface
+- **Responsibility**: Terminal UI rendering
+- **Exports**:
+  - `SwingUIComponents` → `MiderUIComponents` - UI widgets
+  - `InteractiveUI` - REPL management
+  - `TutorialMode` - Guided tutorial
+
+### Module: actions/file_editor.py
+- **Maps to capability**: Code Editing System (Backup & Rollback)
+- **Responsibility**: Edit operations with history
+- **Exports**:
+  - `FileEditor` - Edit orchestration
+  - `apply_changes()` - Apply with backup
+  - `rollback()` - Undo operations
+
+---
+
+## Dependency Chain
+
+### Foundation Layer (Phase 0)
+No dependencies - these are built/refactored first.
+
+- **debug_manager.py**: Unified logging system (no deps)
+- **base_prompts.py**: Base prompt class (no deps)
+- **base_coder.py**: Strategy pattern base (no deps)
+- **llm/service.py**: LLM API client (no deps)
+
+### Data Layer (Phase 1)
+- **prompts/*.py**: Depends on [base_prompts]
+- **file_manager.py**: Depends on [debug_manager]
+- **file_tree_analyzer.py**: Depends on [debug_manager]
+- **mcp/client.py**: Depends on [debug_manager]
+
+### Analysis Layer (Phase 2)
+- **analyzer.py**: Depends on [llm/service, prompts/*, debug_manager]
+- **repo_mapper.py**: Depends on [file_tree_analyzer, debug_manager]
+- **context_manager.py**: Depends on [analyzer, repo_mapper, prompts/*]
+
+### Editing Layer (Phase 3)
+- **wholefile_coder.py**: Depends on [base_coder, file_manager]
+- **editblock_coder.py**: Depends on [base_coder, file_manager]
+- **udiff_coder.py**: Depends on [base_coder, file_manager]
+- **file_editor.py**: Depends on [file_manager, debug_manager]
+
+### UI Layer (Phase 4)
+- **formatters.py**: Depends on [debug_manager]
+- **panels.py**: Depends on [formatters]
+- **components.py**: Depends on [panels, formatters]
+- **interactive.py**: Depends on [components, debug_manager]
+- **tutorial.py**: Depends on [interactive, components]
+
+### Orchestration Layer (Phase 5)
+- **architect_plan.py**: Depends on [base_prompts]
+- **architect_prompts.py**: Depends on [base_prompts]
+- **architect_mode.py**: Depends on [architect_plan, architect_prompts, context_manager]
+- **session_manager.py**: Depends on [file_manager, context_manager]
+- **mcp_integration.py**: Depends on [mcp/client, context_manager]
+
+### Integration Layer (Phase 6)
+- **main.py**: Depends on [ALL above modules]
+- **completer.py**: Depends on [file_manager]
+
+---
+
+## Development Phases
+
+### Phase 0: Mider Branding & Foundation Cleanup
+**Goal**: Establish clean codebase with consistent "Mider" branding
+
+**Entry Criteria**: Current codebase functional
+
+**Tasks**:
+- [ ] Create search/replace strategy for branding (depends on: none)
+  - Acceptance criteria: Complete list of all naming instances to change
+  - Test strategy: grep verification for old names
+
+- [ ] Rename classes and modules (depends on: search/replace strategy)
+  - Acceptance criteria: CoeAnalyzer→MiderAnalyzer, SwingMate→Mider, etc.
+  - Test strategy: Import all modules successfully
+
+- [ ] Update CLI command and UI strings (depends on: class renaming)
+  - Acceptance criteria: CLI invoked as `mider`, all UI shows "Mider"
+  - Test strategy: Manual CLI invocation test
+
+- [ ] Remove unused code (depends on: class renaming)
+  - Acceptance criteria: ai_template_assistant.py deleted, command_runner.py removed
+  - Test strategy: No import errors
+
+- [ ] Update documentation (depends on: all above)
+  - Acceptance criteria: CLAUDE.md, README, PRD reflect Mider branding
+  - Test strategy: Documentation review
+
+**Exit Criteria**:
+- `grep -r "SwingMate\|coe-cli\|SWMate\|CoeAnalyzer"` returns zero results
+- `mider --help` shows correct branding
+- All tests pass
+
+**Delivers**: Clean, consistently branded codebase
+
+---
+
+### Phase 1: Performance Stabilization
+**Goal**: Achieve target response times and memory usage
+
+**Entry Criteria**: Phase 0 complete (Mider branding)
+
+**Tasks**:
+- [ ] Profile current performance (depends on: Phase 0)
+  - Acceptance criteria: Baseline metrics documented
+  - Test strategy: Performance test suite
+
+- [ ] Implement response time optimization (depends on: profiling)
+  - Acceptance criteria: Cached queries <3s, non-cached <8s
+  - Test strategy: Timed integration tests
+
+- [ ] Implement memory optimization (depends on: profiling)
+  - Acceptance criteria: <500MB for 50 files
+  - Test strategy: Memory profiling tests
+
+- [ ] Harden error handling (depends on: Phase 0)
+  - Acceptance criteria: Zero unhandled exceptions, Korean error messages
+  - Test strategy: Error injection tests
+
+**Exit Criteria**:
+- Response time targets met
+- Memory targets met
+- No unhandled exceptions in error scenarios
+
+**Delivers**: Responsive, stable CLI experience
+
+---
+
+### Phase 2: Session & Testing Infrastructure
+**Goal**: Enable session persistence and establish test infrastructure
+
+**Entry Criteria**: Phase 1 complete
+
+**Tasks**:
+- [ ] Implement SessionManager class (depends on: Phase 1)
+  - Acceptance criteria: Save/load session state to JSON
+  - Test strategy: Unit tests for serialization
+
+- [ ] Add /save-session command (depends on: SessionManager)
+  - Acceptance criteria: Command saves current state
+  - Test strategy: Integration test
+
+- [ ] Add /load-session command (depends on: SessionManager)
+  - Acceptance criteria: Command restores state within 2s
+  - Test strategy: Integration test with timing
+
+- [ ] Convert to pytest framework (depends on: Phase 1)
+  - Acceptance criteria: All tests in pytest format
+  - Test strategy: CI pipeline passes
+
+- [ ] Add unit tests for core modules (depends on: pytest)
+  - Acceptance criteria: 70% coverage on core/
+  - Test strategy: Coverage report
+
+- [ ] Configure CI/CD pipeline (depends on: pytest)
+  - Acceptance criteria: GitHub Actions runs tests
+  - Test strategy: PR check passes
+
+**Exit Criteria**:
+- Session save/restore functional
+- 70% test coverage
+- CI pipeline green
+
+**Delivers**: Persistent sessions, reliable test infrastructure
+
+---
+
+### Phase 3: Feature Enhancement
+**Goal**: Enhance intent detection and integrate prompt caching
+
+**Entry Criteria**: Phase 2 complete
+
+**Tasks**:
+- [ ] Expand intent detection keywords (depends on: Phase 2)
+  - Acceptance criteria: 20+ Korean patterns, English support
+  - Test strategy: Intent detection test suite
+
+- [ ] Implement confidence scoring (depends on: expanded keywords)
+  - Acceptance criteria: Confidence threshold for auto-switching
+  - Test strategy: Unit tests
+
+- [ ] Integrate OpenAI prompt caching (depends on: Phase 1)
+  - Acceptance criteria: Cache-control headers sent
+  - Test strategy: API response inspection
+
+- [ ] Add cache metrics (depends on: prompt caching)
+  - Acceptance criteria: /cache-status shows hit rates
+  - Test strategy: Manual verification
+
+**Exit Criteria**:
+- 90% intent detection accuracy
+- Prompt cache functional with metrics
+
+**Delivers**: Smarter intent detection, reduced API costs
+
+---
+
+### Phase 4: Code Quality & Configuration
+**Goal**: Establish centralized configuration and logging standards
+
+**Entry Criteria**: Phase 3 complete
+
+**Tasks**:
+- [ ] Create centralized config.py (depends on: Phase 2)
+  - Acceptance criteria: All settings in one location
+  - Test strategy: Config validation tests
+
+- [ ] Support mider.yaml project config (depends on: config.py)
+  - Acceptance criteria: Project-specific overrides work
+  - Test strategy: Config loading tests
+
+- [ ] Standardize logging levels (depends on: Phase 0)
+  - Acceptance criteria: DEBUG/INFO/WARN/ERROR levels
+  - Test strategy: Log output verification
+
+- [ ] Add log file output (depends on: logging levels)
+  - Acceptance criteria: --log-file option works
+  - Test strategy: File output test
+
+**Exit Criteria**:
+- Centralized configuration working
+- Structured logging with file output
+
+**Delivers**: Maintainable configuration, debuggable logging
+
+---
+
+## Test Pyramid
+
+```
+        /\
+       /E2E\       ← 10% (Full CLI workflow tests)
+      /------\
+     /Integration\ ← 30% (Module interaction tests)
+    /------------\
+   /  Unit Tests  \ ← 60% (Isolated function tests)
+  /----------------\
+```
+
+## Coverage Requirements
+- Line coverage: 70% minimum
+- Branch coverage: 60% minimum
+- Function coverage: 80% minimum
+
+## Critical Test Scenarios
+
+### MiderAnalyzer
+**Happy path**:
+- Analyze valid C file → returns structured analysis
+- Analyze valid SQL file → returns bind variables, joins
+
+**Edge cases**:
+- Empty file → returns minimal analysis
+- Very large file (>10K lines) → handles without OOM
+- Binary file → graceful rejection
+
+**Error cases**:
+- Invalid file path → FileNotFoundError with message
+- LLM API timeout → retry with backoff
+
+### SessionManager
+**Happy path**:
+- Save session → JSON file created
+- Load session → state fully restored
+
+**Edge cases**:
+- Save with 50 files in context → completes in <5s
+- Load corrupted file → graceful error
+
+**Error cases**:
+- Save to read-only path → permission error
+- Load non-existent file → FileNotFoundError
+
+### Code Editing
+**Happy path**:
+- WholeFile edit → file replaced, backup created
+- EditBlock edit → block replaced, context preserved
+- Rollback → original content restored
+
+**Edge cases**:
+- Edit file with no write permission → error before modification
+- Concurrent edit attempts → handled safely
+
+**Error cases**:
+- Invalid diff format → parse error with location
+- Block not found → clear error message
+
+## Test Generation Guidelines
+
+1. Use pytest fixtures for file manager, session state
+2. Mock LLM service for deterministic tests
+3. Use pytest-cov for coverage reporting
+4. Integration tests use tests/fixtures/ sample files
+5. Performance tests measure actual timing, not mocks
+
+---
+
+## System Components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        CLI Layer                             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
+│  │  main   │ │completer│ │   UI    │ │tutorial │           │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘           │
+└───────┼──────────┼──────────┼──────────┼───────────────────┘
+        │          │          │          │
+┌───────┴──────────┴──────────┴──────────┴───────────────────┐
+│                    Core Services                            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │ Analyzer │ │ Context  │ │Architect │ │ Session  │       │
+│  │          │ │ Manager  │ │  Mode    │ │ Manager  │       │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘       │
+└───────┼────────────┼────────────┼────────────┼─────────────┘
+        │            │            │            │
+┌───────┴────────────┴────────────┴────────────┴─────────────┐
+│                    Data Layer                               │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │  File    │ │  File    │ │  Coders  │ │ Prompts  │       │
+│  │ Manager  │ │  Editor  │ │          │ │          │       │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘       │
+└───────┼────────────┼────────────┼────────────┼─────────────┘
+        │            │            │            │
+┌───────┴────────────┴────────────┴────────────┴─────────────┐
+│                    External Services                        │
+│  ┌──────────┐ ┌──────────┐                                 │
+│  │   LLM    │ │   MCP    │                                 │
+│  │ Service  │ │  Client  │                                 │
+│  └──────────┘ └──────────┘                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Models
+
+### SessionState
+```python
+@dataclass
+class SessionState:
+    session_id: str
+    created_at: datetime
+    files: List[FileContext]
+    chat_history: List[Message]
+    current_mode: Mode
+    analysis_cache: Dict[str, AnalysisResult]
+    edit_history: List[EditOperation]
+```
+
+### ExecutionPlan
+```python
+@dataclass
+class ExecutionPlan:
+    plan_id: str
+    request: str
+    steps: List[ExecutionStep]
+    status: PlanStatus
+    created_at: datetime
+    completed_at: Optional[datetime]
+```
+
+### AnalysisResult
+```python
+@dataclass
+class AnalysisResult:
+    file_path: str
+    file_type: FileType
+    analysis: Dict[str, Any]
+    timestamp: datetime
+    content_hash: str
+```
+
+## Technology Stack
+
+| Category | Technology | Rationale |
+|----------|------------|-----------|
+| Language | Python 3.8+ | Enterprise compatibility, rich ecosystem |
+| CLI Framework | Click | Composable commands, good help generation |
+| Interactive UI | prompt_toolkit | Advanced REPL features, completion |
+| Output Formatting | Rich | Beautiful terminal output, tables, trees |
+| HTTP Client | requests | Simple, widely used |
+| LLM | OpenAI API | GPT-4 quality, good documentation |
+| Testing | pytest | Standard Python testing, good plugins |
+| CI/CD | GitHub Actions | Native integration, free for OSS |
+
+---
+
+## Technical Risks
+
+**Risk**: LLM API rate limits during heavy usage
+- **Impact**: High - blocks user workflow
+- **Likelihood**: Medium
+- **Mitigation**: Implement request queuing, aggressive caching
+- **Fallback**: Graceful degradation with cached results
+
+**Risk**: Memory exhaustion with large file contexts
+- **Impact**: High - crashes CLI
+- **Likelihood**: Medium
+- **Mitigation**: Lazy loading, LRU cache eviction, file pagination
+- **Fallback**: Warn user, limit context size
+
+**Risk**: Branding refactor breaks imports
+- **Impact**: Medium - requires debugging
+- **Likelihood**: High
+- **Mitigation**: Systematic search/replace, comprehensive import testing
+- **Fallback**: Git revert to pre-refactor state
+
+## Dependency Risks
+
+**Risk**: OpenAI API changes
+- **Impact**: Medium - requires code updates
+- **Mitigation**: Abstract LLM interface, version pin
+
+**Risk**: MCP server unavailability
+- **Impact**: Low - MCP is optional feature
+- **Mitigation**: Graceful fallback when MCP unavailable
+
+## Scope Risks
+
+**Risk**: Feature creep during refactoring
+- **Impact**: Medium - delays delivery
+- **Mitigation**: Strict phase boundaries, weekly reviews
+- **Fallback**: Defer non-critical features
+
+**Risk**: Underestimated test coverage effort
+- **Impact**: Medium - delays Phase 2
+- **Mitigation**: Start with critical paths, expand iteratively
+- **Fallback**: Accept 60% coverage initially
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **IO Formatter** | C structure defining input/output data layout |
+| **DBIO** | Database I/O layer in legacy systems |
+| **TrxCode** | Transaction code identifier in XML UI |
+| **scwin.xxx** | JavaScript function naming convention in UI |
+| **RepoMap** | Lightweight repository structure representation |
+| **Architect Mode** | AI-driven multi-step task orchestration |
+
+## Open Questions
+
+1. Should session files be encrypted for security?
+2. What is the maximum reasonable context size to support?
+3. Should we support multiple LLM providers (Anthropic, Google)?
+4. How to handle offline mode gracefully?
+
+## References
+
+- Microsoft RPG Research: Repository Planning Graph methodology
+- Aider: Inspiration for RepoMap approach
+- Click documentation: CLI framework patterns
+- Rich documentation: Terminal formatting

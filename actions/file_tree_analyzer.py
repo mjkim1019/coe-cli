@@ -21,7 +21,7 @@ class FileTreeAnalyzer:
         ]
         
         # 주요 파일 확장자 정의 (프로젝트 특성에 맞게)
-        self.primary_extensions = ['.c', '.h', '.sql', '.xml', '.js', '.tar']
+        self.primary_extensions = ['.c', '.pc', '.h', '.sql', '.xml', '.js', '.tar']
         
         # 파일 타입별 분석 패턴
         self.file_patterns = {
@@ -44,6 +44,10 @@ class FileTreeAnalyzer:
             'xml_files': {
                 'extensions': ['.xml', '.XML'],
                 'ui_patterns': ['scwin.', 'form_onLoadCompleted', 'gridView', 'dataset']
+            },
+            'pc_files': {
+                'extensions': ['.pc'],
+                'embedded_sql': ['EXEC SQL', 'DECLARE CURSOR', 'FETCH', 'PREPARE']
             },
             'js_files': {
                 'extensions': ['.js'],
@@ -135,6 +139,7 @@ class FileTreeAnalyzer:
         """파일들을 타입별로 분류하고 상세 정보 포함"""
         categories = {
             'c_files': [],
+            'pc_files': [],
             'header_files': [],
             'sql_files': [],
             'xml_files': [],
@@ -221,6 +226,19 @@ class FileTreeAnalyzer:
             bind_vars = re.findall(r':(\w+)', content)
             analysis['bind_variables'] = list(set(bind_vars))[:10]  # 최대 10개
         
+        elif category == 'pc_files':
+            # Pro*C 임베디드 SQL 패턴 분석
+            embedded_sql = []
+            for feature in self.file_patterns['pc_files']['embedded_sql']:
+                if feature in content:
+                    embedded_sql.append(feature)
+            analysis['embedded_sql'] = embedded_sql
+
+            # 커서 추출
+            import re
+            cursors = re.findall(r'EXEC\s+SQL\s+DECLARE\s+(\w+)\s+CURSOR', content, re.IGNORECASE)
+            analysis['cursors'] = cursors[:10]
+
         elif category == 'xml_files':
             # XML UI 패턴 분석
             ui_patterns = []
@@ -228,7 +246,7 @@ class FileTreeAnalyzer:
                 if pattern in content:
                     ui_patterns.append(pattern)
             analysis['ui_patterns'] = ui_patterns
-        
+
         return analysis
     
     def _analyze_project_type(self, file_categories: Dict) -> Dict:
