@@ -402,9 +402,17 @@ def main():
                 continue
 
 
-            elif user_input.strip().lower().startswith('/rollback '):
+            elif user_input.strip().lower().startswith('/rollback'):
                 parts = user_input.strip().split()
-                if len(parts) == 2:
+                if len(parts) == 1:
+                    # /rollback만 입력 — 히스토리 보여주고 사용법 안내
+                    operations = file_editor.get_history(5)
+                    if operations:
+                        console.print(ui.edit_history_table(operations))
+                        console.print("[dim]사용법: /rollback <ID> → /rollback <ID> confirm[/dim]\n")
+                    else:
+                        interactive_ui.display_command_results('/rollback', {'message': '롤백할 편집 히스토리가 없습니다.'}, console)
+                elif len(parts) == 2:
                     operation_id = parts[1]
                     # 해당 작업 찾기
                     operations = file_editor.get_history()
