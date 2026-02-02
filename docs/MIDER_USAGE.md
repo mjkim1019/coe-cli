@@ -2,10 +2,10 @@
 
 ## 시작하기
 
-1. swing_cli.exe을 SOC 게시판에서 다운받아 특정 위치에 위치시켜주세요. (ex. Users/development)
+1. mider.exe를 SOC 게시판에서 다운받아 특정 위치에 위치시켜주세요. (ex. Users/development)
 2. Users/development 폴더 내에 분석하고자 하는 파일들을 복사해 위치시켜주세요.
-   즉, swing_cli.exe와 분석하고자하는 파일은 같은 폴더 내에 위치합니다.
-3. 이제 swing_cli와 함께 개발/분석할 준비가 완료되었습니다!
+   즉, mider.exe와 분석하고자하는 파일은 같은 폴더 내에 위치합니다.
+3. 이제 mider와 함께 개발/분석할 준비가 완료되었습니다!
 
 
 ## 기본 워크플로우

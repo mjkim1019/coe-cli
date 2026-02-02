@@ -495,7 +495,7 @@ def main():
                     )
 
                     if success:
-                        actual_path = os.path.join("SWING_AUTO_FILES", f"{filename}.c")
+                        actual_path = os.path.join("MIDER_AUTO_FILES", f"{filename}.c")
                         console.print(panels.create_success_panel(
                             f"✅ 파일 생성 완료: {actual_path}\n"
                             f"서비스 ID: {service_id}\n"

@@ -318,7 +318,7 @@ class FileWatcher:
 
 **주석 형태**:
 ```c
-// [SWING-CLI] 2024-01-15 14:30:25 by user123
+// [MIDER] 2024-01-15 14:30:25 by user123
 // [변경이유] 입력 검증 로직 강화를 위해 NULL 체크 추가
 if (input_data == NULL) {
     return ERROR_INVALID_INPUT;

@@ -44,7 +44,7 @@ class InteractiveUI:
         title_text.append("\n")
         title_text.append("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█\n", style="bold bright_blue")
         title_text.append("█                            █\n", style="bold bright_blue")
-        title_text.append("█         SWING CLI          █\n", style="bold bright_cyan")
+        title_text.append("█         MIDER CLI          █\n", style="bold bright_cyan")
         title_text.append("█                            █\n", style="bold bright_blue") 
         title_text.append("█     AI Coding Assistant    █\n", style="bold bright_magenta")
         title_text.append("█                            █\n", style="bold bright_blue")

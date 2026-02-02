@@ -109,7 +109,7 @@ class TemplateManager:
             else:
                 new_content = self._basic_replace(template_content, service_id, author, description)
             
-            # SWING_AUTO_FILES에 파일 생성
+            # MIDER_AUTO_FILES에 파일 생성
             return self._save_to_auto_files(filename, new_content)
             
         except Exception as e:
@@ -117,8 +117,8 @@ class TemplateManager:
             return False
     
     def _save_to_auto_files(self, filename: str, content: str) -> bool:
-        """SWING_AUTO_FILES 디렉토리에 파일 저장"""
-        auto_files_dir = "SWING_AUTO_FILES"
+        """MIDER_AUTO_FILES 디렉토리에 파일 저장"""
+        auto_files_dir = "MIDER_AUTO_FILES"
         if not os.path.exists(auto_files_dir):
             os.makedirs(auto_files_dir)
             self.console.print(f"[dim]📁 자동 생성 파일 디렉토리 생성: {auto_files_dir}[/dim]")
