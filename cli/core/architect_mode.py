@@ -35,7 +35,7 @@ class ArchitectMode:
         self.session = session
         self.template_manager = template_manager
         self.prompts = ArchitectPrompts()
-        self.plans_dir = Path(".swmate/plans")
+        self.plans_dir = Path(".mider/plans")
         self.plans_dir.mkdir(parents=True, exist_ok=True)
     
     def run(self, user_request: str) -> Optional[ExecutionPlan]:
@@ -402,7 +402,7 @@ class ArchitectMode:
             )
             
             if success:
-                output_path = os.path.join("SWING_AUTO_FILES", filename)
+                output_path = os.path.join("MIDER_AUTO_FILES", filename)
                 step.output = f"Created file: {output_path}"
                 self.console.print(f"[green]✅ 파일 생성 완료: {output_path}[/green]")
                 return True

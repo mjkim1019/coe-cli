@@ -402,7 +402,7 @@ class ArchitectMode:
             )
             
             if success:
-                output_path = os.path.join("SWING_AUTO_FILES", filename)
+                output_path = os.path.join("MIDER_AUTO_FILES", filename)
                 step.output = f"Created file: {output_path}"
                 self.console.print(f"[green]✅ 파일 생성 완료: {output_path}[/green]")
                 return True
