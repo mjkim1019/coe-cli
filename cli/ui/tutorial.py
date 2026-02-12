@@ -138,6 +138,47 @@ class TutorialMode:
                         self._cleanup()
                         return False
                 
+                # 단계 성공 - 다음 단계로 이동할지 확인
+                self.console.print()
+                self.console.print("[bold green]✅ 단계 완료![/bold green]")
+                
+                # 마지막 단계가 아니면 다음 단계로 이동 여부 확인
+                if self.current_step < self.total_steps:
+                    # 유효한 입력을 받을 때까지 반복
+                    while True:
+                        next_step_response = self.session.prompt("다음 단계로 이동하시겠습니까? [Y/n]: ").strip().lower()
+                        
+                        # 유효한 입력 체크 (입력은 이미 소문자로 변환됨)
+                        valid_yes = ['y', 'yes', '예', '네', '']  # 빈 문자열 = Enter 키
+                        valid_no = ['n', 'no', '아니오', '아니요']
+                        
+                        if next_step_response in valid_yes:
+                            # Yes 선택 - 다음 단계로 진행
+                            break
+                        elif next_step_response in valid_no:
+                            # No 선택 - 옵션 메뉴 표시
+                            action = self._handle_step_pause()
+                            
+                            if action == 'retry':
+                                # 현재 단계 재실행
+                                self.console.print("[cyan]🔄 이 단계를 다시 실행합니다...[/cyan]")
+                                continue  # 동일한 단계 재시도
+                            elif action == 'continue':
+                                # 다음 단계로 진행
+                                self.console.print("[green]▶ 다음 단계로 이동합니다.[/green]")
+                                # 아래에서 자동으로 다음 단계로 이동
+                                break
+                            elif action == 'exit':
+                                # 튜토리얼 종료
+                                self.console.print("[yellow]튜토리얼을 종료합니다.[/yellow]")
+                                self._cleanup()
+                                return False
+                        else:
+                            # 잘못된 입력
+                            self.console.print(f"[yellow]⚠️  잘못된 입력: '{next_step_response}'[/yellow]")
+                            self.console.print("[dim]'Y' (예/Yes) 또는 'n' (아니오/No)만 입력 가능합니다.[/dim]")
+                            continue  # 다시 입력 받기
+                
                 # 다음 단계로 이동
                 self.current_step += 1
                 if self.current_step <= self.total_steps:  # <= 로 변경하여 완료 단계도 표시
@@ -311,6 +352,46 @@ class TutorialMode:
                 return 'exit'
         
         return 'continue'  # 폴백
+    
+    def _handle_step_pause(self) -> str:
+        """사용자가 다음 단계로 이동하지 않기로 선택했을 때 옵션 메뉴 표시"""
+        self.console.print()
+        self.console.print("[bold cyan]어떻게 하시겠습니까?[/bold cyan]")
+        self.console.print("  [yellow]1.[/yellow] 이 단계 다시 실행 (retry)")
+        self.console.print("  [green]2.[/green] 다음 단계로 이동 (continue)")
+        self.console.print("  [red]3.[/red] 튜토리얼 종료 (exit)")
+        self.console.print()
+        
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                choice = self.session.prompt("선택 [1-3]: ").strip().lower()
+                
+                # 숫자 또는 텍스트 입력 처리
+                if choice in ['1', 'retry', 'r']:
+                    return 'retry'
+                elif choice in ['2', 'continue', 'c', 'next', '']:
+                    return 'continue'
+                elif choice in ['3', 'exit', 'e', 'quit', 'q']:
+                    return 'exit'
+                else:
+                    self.console.print(f"[yellow]⚠️  잘못된 선택: '{choice}'[/yellow]")
+                    self.console.print("[dim]1, 2, 3 중 하나를 선택하거나 retry/continue/exit를 입력하세요.[/dim]")
+                    retry_count += 1
+                    
+                    if retry_count >= max_retries:
+                        self.console.print("[yellow]⚠️  잘못된 입력이 반복되어 자동으로 다음 단계로 이동합니다.[/yellow]")
+                        return 'continue'
+                    continue
+                    
+            except (KeyboardInterrupt, EOFError):
+                self.console.print()
+                return 'exit'
+        
+        return 'continue'  # 폴백
+
     
     def _execute_step(self) -> bool:
         """현재 단계의 액션 실행"""
