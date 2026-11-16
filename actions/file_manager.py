@@ -3,6 +3,7 @@ import os
 import re
 from typing import List, Optional, Dict
 from .file_tree_analyzer import FileTreeAnalyzer
+from .dbio_validator import is_dbio_file, validate_dbio
 
 # 새로 추가: charset_normalizer로 인코딩 감지
 try:
@@ -216,7 +217,7 @@ class FileManager:
                         if zngm_result['message']:
                             result['message'] += f"\n  ↳ Auto-loaded: {zngm_result['message']}"
                 # .sql 파일인 경우 구조 정보 추가
-                elif resolved_path.endswith('.sql'):
+                elif resolved_path.lower().endswith('.sql'):
                     result['file_type'] = 'sql_file'
                     analysis = self._analyze_sql_file_structure(content)
                     self.sql_file_info[resolved_path] = analysis
@@ -235,6 +236,17 @@ class FileManager:
                 else:
                     result['message'] = f"Read {resolved_path}, {line_count} lines"
                     
+                if is_dbio_file(resolved_path):
+                    validation = validate_dbio(resolved_path, content)
+                    if result['analysis'] is None:
+                        result['analysis'] = {}
+                    result['analysis']['dbio_validation'] = validation
+                    for diagnostic in validation['diagnostics']:
+                        result['message'] += (
+                            f"\n{diagnostic['severity']} {diagnostic['code']} "
+                            f"{resolved_path}:{diagnostic['line']} — {diagnostic['message']}"
+                        )
+
             except Exception as e:
                 result['message'] = f"Error reading file {resolved_path}: {e}"
         else:

@@ -5,3 +5,5 @@ requests
 rich
 python-dotenv
 pyyaml
+
+sqlglot==26.33.0

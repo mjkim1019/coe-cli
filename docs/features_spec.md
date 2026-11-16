@@ -118,6 +118,34 @@ SQL 파일 전용 프롬프트로 다음 요소들을 중점 분석합니다:
 - **오라클 함수**: NVL, TO_CHAR, SYSDATE 등
 - **특수 날짜 패턴**: `99991231235959`, `99991231` 등의 무한대 날짜 패턴
 
+### DBIO 필수 유효기간 조건 검사
+
+`/add`로 파일 또는 디렉토리를 추가할 때 파일명이 `pdb_`로 시작하거나
+`.sql`로 끝나는 파일을 검사합니다(대소문자 무시). 전체 내용을 로컬 Oracle SQL
+파서로 검사하며 LLM 호출이나 소스 자동 수정은 하지 않습니다.
+
+| 코드 | 대상 테이블 | 통과 조건 | 누락 등급 |
+|---|---|---|---|
+| DBIO001 | ZORD_PROD_GRP_DTL | EFF_END_DTM **및** SUPL_FUNC_PSBL_END_DT 조건 모두 존재 | CRITICAL |
+| DBIO002 | ZORD_DC_GRP_DTL | EFF_END_DTM **또는** OP_PSBL_END_DT 조건 존재 | CRITICAL |
+
+- 각 쿼리 블록/테이블 별칭별 WHERE 및 JOIN ON의 실제 비교 조건을 검사합니다.
+- SELECT 출력 컬럼, UPDATE SET, 주석, 문자열, 다른 쿼리/별칭의 조건은 인정하지 않습니다.
+- OR의 모든 분기에서 필요한 조건이 충족되어야 합니다. 외부 조인의 보존되는
+  테이블에 대해서는 ON만으로 필터가 적용된 것으로 보지 않습니다.
+- 조인에서 별칭 없는 컬럼은 소속을 확정할 수 없어 인정하지 않습니다.
+- SELECT, UPDATE, DELETE, MERGE 및 INSERT ... SELECT의 읽는 테이블을 검사합니다.
+  INSERT VALUES만으로는 조회 조건을 요구하지 않습니다.
+- `pdb_*` Pro*C의 `EXEC SQL` 및 `DECLARE ... CURSOR FOR` 블록을 지원합니다.
+- 파일/행, 테이블/별칭, 누락 조건을 출력하고 `analysis.dbio_validation`에 저장합니다.
+  CRITICAL은 분석 진단이며 파일 추가나 CLI 실행을 중단시키지는 않습니다.
+- 파서가 처리하지 못하는 구문은 `INCOMPLETE`와 `DBIO_PARSE_ERROR` 경고를
+  표시합니다. C 문자열로 조립하는 동적 SQL, 매크로 확장, 별도 파일의 SQL은
+  실행/추적하지 않으므로 원본 SQL로 검사해야 합니다.
+- 조건의 존재를 검사하며 날짜 비교값/연산자의 업무적 타당성은 별도 검토 대상입니다.
+
+검증: `python -m unittest tests.test_dbio_validator -v`
+
 ### 일반 파일 (기타) - 기본 분석
 기타 파일 타입에 대해서는 일반적인 코드 분석을 수행합니다:
 - 파일 목적 (주석 우선 추출)

@@ -288,8 +288,12 @@ class InteractiveUI:
         
         if isinstance(result, dict) and 'messages' in result:
             # 기본 추가 메시지
+            from rich.text import Text
+            message_text = Text("\n".join(result['messages']))
+            message_text.highlight_regex(r"(?m)^CRITICAL .*$", "bold red")
+            message_text.highlight_regex(r"(?m)^WARNING DBIO_PARSE_ERROR.*$", "yellow")
             message_panel = Panel(
-                "\n".join(result['messages']),
+                message_text,
                 title="• 파일 추가됨",
                 style="green"
             )
